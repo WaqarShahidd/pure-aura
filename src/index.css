@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+
+/* Design tokens — must stay in sync with src/theme/palette.js and src/theme/typography.js */
+@theme {
+  --color-charcoal: #1a1a1a;
+  --color-charcoal-soft: #2b2b2b;
+  --color-cream: #faf9f5;
+  --color-sage: #eef1e7;
+  --color-sage-dark: #dfe4d3;
+  --color-olive: #5c6152;
+  --color-accent: #e2733a;
+  --color-text-muted: #6b6b6b;
+
+  --font-sans: 'Poppins', 'Segoe UI', sans-serif;
+  --font-accent: 'Playfair Display', 'Georgia', serif;
+
+  --animate-marquee: marquee linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+/* Wrapped in @layer base so Tailwind utility classes (e.g. text-white on a link/button)
+   always win over these defaults — unlayered CSS beats layered CSS regardless of specificity. */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-charcoal);
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .italic-accent {
+    font-family: var(--font-accent);
+    font-style: italic;
+    font-weight: 400;
+  }
+}
