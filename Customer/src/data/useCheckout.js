@@ -24,6 +24,15 @@ export function useCheckoutOptions() {
   }
 }
 
+// The cart drawer's live check as someone types a code - not authoritative. createOrder
+// re-validates from scratch at the point that actually matters, the same way it already
+// does for payment and delivery methods.
+export function useValidateDiscount() {
+  return useMutation({
+    mutationFn: ({ code, subtotal }) => api('/carts/discount', { method: 'POST', body: { code, subtotal } }),
+  })
+}
+
 export function usePlaceOrder() {
   return useMutation({
     mutationFn: (body) => api('/orders', { method: 'POST', body }),
@@ -38,5 +47,20 @@ export function useOrderLookup(token) {
     queryFn: () => api(`/orders/lookup?token=${encodeURIComponent(token)}`),
     enabled: Boolean(token),
     retry: false,
+  })
+}
+
+// Bank transfer proof. The order number identifies which order; the access token proves
+// the uploader is the person who placed it, the same way the lookup above does.
+export function useUploadProof(orderNumber, token) {
+  return useMutation({
+    mutationFn: (file) => {
+      const body = new FormData()
+      body.append('file', file)
+      return api(`/orders/${encodeURIComponent(orderNumber)}/proof?token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        body,
+      })
+    },
   })
 }

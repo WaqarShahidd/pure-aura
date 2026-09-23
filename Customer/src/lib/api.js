@@ -63,11 +63,13 @@ async function request(path, { method = 'GET', body, signal, headers, skipAuthRe
       // credentials for a session to survive a reload.
       credentials: 'include',
       headers: {
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        // FormData sets its own multipart boundary - a Content-Type header here would
+        // override that and the server would fail to parse the upload.
+        ...(body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...headers,
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     })
   } catch (error) {
     // fetch only rejects for network-level failures, which is the case worth naming

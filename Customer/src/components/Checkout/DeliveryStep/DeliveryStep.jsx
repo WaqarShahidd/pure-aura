@@ -1,7 +1,7 @@
 import { formatPrice } from '../../../utils/formatPrice'
 import { cn } from '../../../utils/classNames'
 
-export default function DeliveryStep({ value, onChange, subtotal }) {
+export default function DeliveryStep({ value, onChange, subtotal, methods = [] }) {
   return (
     <fieldset className="flex flex-col gap-3">
       <legend className="mb-2 text-lg font-medium">Delivery method</legend>

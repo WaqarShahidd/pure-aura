@@ -16,7 +16,7 @@ import { useOrder } from '../../data/useAccount'
 // behind it at all - now it either shows the real account or asks you to sign in.
 export default function Account({ view = 'overview' }) {
   const { section, id } = useParams()
-  const { isSignedIn, isChecking, signIn, register } = useAuth()
+  const { isSignedIn, isChecking, signIn, register, forgotPassword } = useAuth()
 
   // Hooks run unconditionally, before any early return, or the hook order changes between
   // the signed-out and signed-in renders.
@@ -30,7 +30,7 @@ export default function Account({ view = 'overview' }) {
     return (
       <>
         <PageHero title="Your account" accent="account" />
-        <SignInForm onSignIn={signIn} onRegister={register} />
+        <SignInForm onSignIn={signIn} onRegister={register} onForgotPassword={forgotPassword} />
       </>
     )
   }

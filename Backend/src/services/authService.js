@@ -7,7 +7,7 @@ import { sequelize } from '../db/index.js'
 import models from '../db/models/index.js'
 import { forbidden, unauthorized } from '../lib/errors.js'
 
-const { AdminUser, Customer, RefreshToken } = models
+const { AdminUser, Customer, RefreshToken, PasswordReset } = models
 
 // Customers and admins get different secrets AND different audiences. Either alone would
 // do, but together they mean a customer token presented to an admin route fails at the
@@ -184,6 +184,55 @@ export async function authenticateCustomer(email, password) {
 
 export function hashPassword(password) {
   return bcrypt.hash(password, 10)
+}
+
+// Returns null when there is no such customer, on purpose: the route always answers the
+// same way either way, so this cannot be used to find out which emails are registered.
+export async function requestPasswordReset(email) {
+  const customer = await Customer.findOne({ where: { email } })
+  if (!customer) return null
+
+  const raw = randomBytes(32).toString('base64url')
+  const expiresAt = new Date(Date.now() + 60 * 60_000) // 1 hour
+
+  await PasswordReset.create({
+    subjectType: 'customer',
+    subjectId: customer.id,
+    tokenHash: hashToken(raw),
+    expiresAt,
+  })
+
+  return { customer, token: raw }
+}
+
+export async function resetPassword(rawToken, newPassword) {
+  const reset = await PasswordReset.findOne({
+    where: { subjectType: 'customer', tokenHash: hashToken(rawToken), usedAt: { [Op.is]: null } },
+  })
+
+  if (!reset || reset.expiresAt.getTime() < Date.now()) {
+    throw unauthorized('That reset link is invalid or has expired')
+  }
+
+  const customer = await Customer.findByPk(reset.subjectId)
+  if (!customer) throw unauthorized('That reset link is invalid or has expired')
+
+  await sequelize.transaction(async (transaction) => {
+    await customer.update({ passwordHash: await hashPassword(newPassword) }, { transaction })
+    await reset.update({ usedAt: new Date() }, { transaction })
+
+    // A password reset is the moment to end every session that predates it - if the old
+    // password leaked, a session opened with it might have too.
+    await RefreshToken.update(
+      { revokedAt: new Date() },
+      {
+        where: { subjectType: 'customer', subjectId: customer.id, revokedAt: { [Op.is]: null } },
+        transaction,
+      },
+    )
+  })
+
+  return customer
 }
 
 // Path-scoped so the storefront's cookie is never sent to admin routes and vice versa,

@@ -1,11 +1,13 @@
 import CloseIcon from '@mui/icons-material/Close'
-import { cartCopy } from '../../../config/cart'
+import { useCartCopy } from '../../../data/useContent'
 
 export default function CartHeader({ count, onClose }) {
+  const copy = useCartCopy()
+
   return (
     <div className="flex items-center justify-between border-b border-charcoal/10 px-5 py-4">
       <h2 className="flex items-center gap-2 text-lg font-medium">
-        {cartCopy.title}
+        {copy.title}
         {count > 0 && (
           <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-charcoal px-2 text-xs text-white">
             {count}

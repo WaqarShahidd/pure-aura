@@ -3,18 +3,24 @@ import ReplyOutlinedIcon from '@mui/icons-material/ReplyOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import CloseIcon from '@mui/icons-material/Close'
+import { useValidateDiscount } from '../../../data/useCheckout'
 import { cn } from '../../../utils/classNames'
 
+// An order carries exactly one discount_code, not a list - orders.discount_code is a
+// single column - so applying a second code replaces the first rather than stacking.
 export default function CartActions({
   note,
   onNoteChange,
-  discountCodes,
+  discount,
+  subtotal,
   onApplyDiscount,
   onRemoveDiscount,
 }) {
   const [panel, setPanel] = useState(null)
   const [code, setCode] = useState('')
   const [shared, setShared] = useState(false)
+  const [error, setError] = useState(null)
+  const validate = useValidateDiscount()
 
   const toggle = (id) => setPanel((current) => (current === id ? null : id))
 
@@ -28,11 +34,20 @@ export default function CartActions({
     }
   }
 
-  const submitCode = (event) => {
+  const submitCode = async (event) => {
     event.preventDefault()
-    const trimmed = code.trim()
+    const trimmed = code.trim().toUpperCase()
     if (!trimmed) return
-    onApplyDiscount(trimmed.toUpperCase())
+
+    setError(null)
+    const result = await validate.mutateAsync({ code: trimmed, subtotal })
+
+    if (!result.valid) {
+      setError(result.message)
+      return
+    }
+
+    onApplyDiscount({ code: trimmed, kind: result.kind, amount: result.amount })
     setCode('')
   }
 
@@ -41,7 +56,7 @@ export default function CartActions({
     { id: 'note', label: 'Order note', Icon: EditOutlinedIcon, onClick: () => toggle('note') },
     {
       id: 'discount',
-      label: `Discount(${discountCodes.length})`,
+      label: discount ? 'Discount(1)' : 'Discount',
       Icon: LocalOfferOutlinedIcon,
       onClick: () => toggle('discount'),
     },
@@ -80,39 +95,43 @@ export default function CartActions({
 
       {panel === 'discount' && (
         <div className="border-t border-charcoal/10 px-5 py-4">
-          <form onSubmit={submitCode} className="flex gap-2">
-            <input
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              placeholder="Discount code"
-              className="min-w-0 flex-1 rounded-full border border-charcoal/20 px-4 py-2 text-sm outline-none transition-colors placeholder:text-text-muted focus:border-charcoal"
-            />
-            <button
-              type="submit"
-              className="rounded-full bg-charcoal px-4 py-2 text-sm text-white transition-opacity hover:opacity-85"
-            >
-              Apply
-            </button>
-          </form>
-
-          {discountCodes.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {discountCodes.map((applied) => (
-                <li
-                  key={applied}
-                  className="flex items-center gap-1.5 rounded-full bg-sage px-3 py-1 text-xs"
+          {discount ? (
+            <div className="flex items-center justify-between gap-2 rounded-full bg-sage px-4 py-2 text-sm">
+              <span>{discount.code}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${discount.code}`}
+                onClick={() => onRemoveDiscount()}
+                className="flex h-5 w-5 items-center justify-center"
+              >
+                <CloseIcon sx={{ fontSize: 15 }} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <form
+                onSubmit={submitCode}
+                className="flex gap-2"
+              >
+                <input
+                  value={code}
+                  onChange={(event) => {
+                    setCode(event.target.value)
+                    setError(null)
+                  }}
+                  placeholder="Discount code"
+                  className="min-w-0 flex-1 rounded-full border border-charcoal/20 px-4 py-2 text-sm outline-none transition-colors placeholder:text-text-muted focus:border-charcoal"
+                />
+                <button
+                  type="submit"
+                  disabled={validate.isPending}
+                  className="rounded-full bg-charcoal px-4 py-2 text-sm text-white transition-opacity hover:opacity-85 disabled:opacity-50"
                 >
-                  {applied}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${applied}`}
-                    onClick={() => onRemoveDiscount(applied)}
-                  >
-                    <CloseIcon sx={{ fontSize: 13 }} />
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  {validate.isPending ? 'Checking…' : 'Apply'}
+                </button>
+              </form>
+              {error && <p className="mt-2 text-xs text-accent">{error}</p>}
+            </>
           )}
         </div>
       )}

@@ -178,6 +178,7 @@ function serializeOrder(order) {
     paymentLabel: order.paymentMethodLabel,
     subtotal: order.subtotalAmount,
     discount: order.discountAmount,
+    discountCode: order.discountCode,
     shipping: order.shippingAmount,
     tax: order.taxAmount,
     taxInclusive: order.taxInclusive,

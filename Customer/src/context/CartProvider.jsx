@@ -1,36 +1,44 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react'
 import { CartContext } from './cartContext'
 import { cartConfig } from '../config/cart'
+import { api } from '../lib/api'
 
 const initialState = {
   items: [],
   isOpen: false,
   reservedUntil: null,
   note: '',
-  discountCodes: [],
+  discount: null, // {code, kind, amount} | null - one order carries one discount_code
+  cartToken: null,
+  holdError: null, // ephemeral UI feedback from the last /carts/hold call, never persisted
 }
 
 // Reads storage synchronously as the reducer's initial value rather than in an effect, which
 // avoids a flash of an empty cart under StrictMode and avoids an initial write that would
 // clobber what is stored.
 function loadInitialCart() {
-  if (typeof window === 'undefined') return initialState
+  // The cart's inventory_holds all key off this - it needs to exist before the first
+  // addItem, not be created lazily on first use, or the earliest holds of a session
+  // would have no cart_token to attach to.
+  const ensureToken = (state) => ({ ...state, cartToken: state.cartToken ?? crypto.randomUUID() })
+
+  if (typeof window === 'undefined') return ensureToken(initialState)
 
   try {
     const raw = window.localStorage.getItem(cartConfig.storageKey)
-    if (!raw) return initialState
+    if (!raw) return ensureToken(initialState)
 
     const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed?.items)) return initialState
+    if (!Array.isArray(parsed?.items)) return ensureToken(initialState)
 
-    return {
+    return ensureToken({
       ...initialState,
       ...parsed,
       // Never restore an open drawer on page load.
       isOpen: false,
-    }
+    })
   } catch {
-    return initialState
+    return ensureToken(initialState)
   }
 }
 
@@ -91,7 +99,9 @@ function cartReducer(state, action) {
       }
 
     case 'CLEAR_CART':
-      return { ...initialState }
+      // A fresh token too - the old one's holds are superseded by the order that was
+      // just placed (orderService releases them), so nothing is lost by not reusing it.
+      return { ...initialState, cartToken: crypto.randomUUID() }
 
     case 'OPEN_DRAWER':
       return { ...state, isOpen: true }
@@ -103,15 +113,15 @@ function cartReducer(state, action) {
     case 'SET_NOTE':
       return { ...state, note: action.note }
 
+    // A cart carries at most one discount - orders.discount_code is a single column, not
+    // a list - so applying a new code replaces whatever was there.
     case 'APPLY_DISCOUNT':
-      return state.discountCodes.includes(action.code)
-        ? state
-        : { ...state, discountCodes: [...state.discountCodes, action.code] }
+      return { ...state, discount: action.discount }
     case 'REMOVE_DISCOUNT':
-      return {
-        ...state,
-        discountCodes: state.discountCodes.filter((code) => code !== action.code),
-      }
+      return { ...state, discount: null }
+
+    case 'SET_HOLD_ERROR':
+      return { ...state, holdError: action.message }
 
     case 'RESET_RESERVATION':
       return { ...state, reservedUntil: null }
@@ -124,7 +134,8 @@ function cartReducer(state, action) {
 export default function CartProvider({ children }) {
   const [state, dispatch] = useReducer(cartReducer, undefined, loadInitialCart)
 
-  // Deliberately not keyed on isOpen — opening the drawer should not hit storage.
+  // Deliberately not keyed on isOpen — opening the drawer should not hit storage. Nor on
+  // holdError, which is ephemeral UI feedback from the last hold attempt, not cart data.
   useEffect(() => {
     try {
       window.localStorage.setItem(
@@ -132,18 +143,40 @@ export default function CartProvider({ children }) {
         JSON.stringify({
           items: state.items,
           note: state.note,
-          discountCodes: state.discountCodes,
+          discount: state.discount,
+          cartToken: state.cartToken,
           reservedUntil: state.reservedUntil,
         }),
       )
     } catch {
       // Storage unavailable (private mode, blocked cookies) — the cart still works in memory.
     }
-  }, [state.items, state.note, state.discountCodes, state.reservedUntil])
+  }, [state.items, state.note, state.discount, state.cartToken, state.reservedUntil])
 
-  const addItem = useCallback((item, quantity = 1) => {
-    dispatch({ type: 'ADD_ITEM', item, quantity })
-  }, [])
+  // Fire-and-forget: the cart itself stays optimistic and client-authoritative, this just
+  // tries to back it with a real reservation. A failure (most often INSUFFICIENT_STOCK,
+  // the "two browsers, one unit" race) surfaces as holdError rather than blocking the add
+  // or rolling it back - the line stays in the cart, and checkout's own stock check is
+  // still the real, final word.
+  const addItem = useCallback(
+    (item, quantity = 1) => {
+      dispatch({ type: 'ADD_ITEM', item, quantity })
+
+      if (!item.variantId) return
+      api('/carts/hold', {
+        method: 'POST',
+        body: { cartToken: state.cartToken, variantId: item.variantId, quantity },
+      })
+        .then(() => dispatch({ type: 'SET_HOLD_ERROR', message: null }))
+        .catch((error) => {
+          dispatch({
+            type: 'SET_HOLD_ERROR',
+            message: error?.details?.[0]?.message ?? error?.message ?? 'Could not reserve that item',
+          })
+        })
+    },
+    [state.cartToken],
+  )
   const removeItem = useCallback((key) => dispatch({ type: 'REMOVE_ITEM', key }), [])
   const setQuantity = useCallback(
     (key, quantity) => dispatch({ type: 'SET_QUANTITY', key, quantity }),
@@ -157,8 +190,8 @@ export default function CartProvider({ children }) {
   const openCart = useCallback(() => dispatch({ type: 'OPEN_DRAWER' }), [])
   const closeCart = useCallback(() => dispatch({ type: 'CLOSE_DRAWER' }), [])
   const setNote = useCallback((note) => dispatch({ type: 'SET_NOTE', note }), [])
-  const applyDiscount = useCallback((code) => dispatch({ type: 'APPLY_DISCOUNT', code }), [])
-  const removeDiscount = useCallback((code) => dispatch({ type: 'REMOVE_DISCOUNT', code }), [])
+  const applyDiscount = useCallback((discount) => dispatch({ type: 'APPLY_DISCOUNT', discount }), [])
+  const removeDiscount = useCallback(() => dispatch({ type: 'REMOVE_DISCOUNT' }), [])
   const expireReservation = useCallback(() => dispatch({ type: 'RESET_RESERVATION' }), [])
 
   // Derived, never stored — storing these would let them drift from `items`.

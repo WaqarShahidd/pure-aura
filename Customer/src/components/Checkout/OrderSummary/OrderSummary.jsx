@@ -2,7 +2,16 @@ import ImagePlaceholder from '../../Common/ImagePlaceholder/ImagePlaceholder'
 import { formatPrice } from '../../../utils/formatPrice'
 
 // The rail beside the form. Reads live cart state, so changing delivery method updates it.
-export default function OrderSummary({ items, subtotal, savings, shipping, tax, total }) {
+export default function OrderSummary({
+  items,
+  subtotal,
+  savings,
+  discount,
+  discountAmount,
+  shipping,
+  tax,
+  total,
+}) {
   return (
     <aside className="rounded-2xl border border-charcoal/15 p-5 md:sticky md:top-6">
       <h2 className="mb-4 text-sm font-medium">Order summary</h2>
@@ -47,20 +56,25 @@ export default function OrderSummary({ items, subtotal, savings, shipping, tax, 
           </div>
         )}
 
+        {discount && (
+          <div className="flex justify-between text-accent">
+            <dt>{discount.code}</dt>
+            <dd>{discount.kind === 'free_shipping' ? 'Free shipping' : `-${formatPrice(discountAmount)}`}</dd>
+          </div>
+        )}
+
         <div className="flex justify-between">
           <dt className="text-text-muted">Shipping</dt>
           <dd>{shipping === 0 ? 'Free' : formatPrice(shipping)}</dd>
-        </div>
-
-        <div className="flex justify-between">
-          <dt className="text-text-muted">Estimated tax</dt>
-          <dd>{formatPrice(tax)}</dd>
         </div>
 
         <div className="mt-2 flex justify-between border-t border-charcoal/10 pt-3 text-base font-semibold">
           <dt>Total</dt>
           <dd>{formatPrice(total)}</dd>
         </div>
+        {/* Prices already include tax - this states what portion of the total it is,
+            it is never added on top. */}
+        <p className="text-right text-xs text-text-muted">(incl. GST {formatPrice(tax)})</p>
       </dl>
     </aside>
   )

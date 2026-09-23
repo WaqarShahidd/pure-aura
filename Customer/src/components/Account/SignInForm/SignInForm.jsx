@@ -12,13 +12,15 @@ const EMPTY = { email: '', password: '', firstName: '', lastName: '', marketingO
 // Copy-pasted inline in every other form in this codebase; kept identical here on purpose.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
-export default function SignInForm({ onSignIn, onRegister }) {
+export default function SignInForm({ onSignIn, onRegister, onForgotPassword }) {
   const [mode, setMode] = useState('signIn')
   const [values, setValues] = useState(EMPTY)
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(false)
 
   const isRegister = mode === 'register'
+  const isForgot = mode === 'forgotPassword'
   const set = (field) => (event) =>
     setValues((current) => ({ ...current, [field]: event.target.value }))
 
@@ -27,7 +29,7 @@ export default function SignInForm({ onSignIn, onRegister }) {
 
     const next = {}
     if (!EMAIL_RE.test(values.email)) next.email = 'Enter a valid email address'
-    if (!values.password) next.password = 'Required'
+    if (!isForgot && !values.password) next.password = 'Required'
     if (isRegister) {
       if (values.password.length < 8) next.password = 'Use at least 8 characters'
       if (!values.firstName.trim()) next.firstName = 'Required'
@@ -39,7 +41,10 @@ export default function SignInForm({ onSignIn, onRegister }) {
 
     setBusy(true)
     try {
-      if (isRegister) {
+      if (isForgot) {
+        await onForgotPassword(values.email)
+        setSent(true)
+      } else if (isRegister) {
         await onRegister({
           email: values.email,
           password: values.password,
@@ -64,14 +69,40 @@ export default function SignInForm({ onSignIn, onRegister }) {
     }
   }
 
+  if (isForgot && sent) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-16 text-center">
+        <SectionHeading size="md">Check your email</SectionHeading>
+        <p className="mt-2 text-sm text-text-muted">
+          If an account exists for {values.email}, a reset link is on its way.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setMode('signIn')
+            setSent(false)
+            setValues(EMPTY)
+          }}
+          className="mt-6 text-sm underline underline-offset-4"
+        >
+          Back to sign in
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-md px-6 py-16">
       <div className="mb-8 text-center">
-        <SectionHeading size="md">{isRegister ? 'Create an account' : 'Sign in'}</SectionHeading>
+        <SectionHeading size="md">
+          {isForgot ? 'Reset your password' : isRegister ? 'Create an account' : 'Sign in'}
+        </SectionHeading>
         <p className="mt-2 text-sm text-text-muted">
-          {isRegister
-            ? 'Save your details and keep track of your orders.'
-            : 'Welcome back — sign in to see your orders.'}
+          {isForgot
+            ? "Enter your email and we'll send you a reset link."
+            : isRegister
+              ? 'Save your details and keep track of your orders.'
+              : 'Welcome back — sign in to see your orders.'}
         </p>
       </div>
 
@@ -110,16 +141,31 @@ export default function SignInForm({ onSignIn, onRegister }) {
           required
         />
 
-        <TextField
-          id="password"
-          label="Password"
-          type="password"
-          autoComplete={isRegister ? 'new-password' : 'current-password'}
-          value={values.password}
-          onChange={set('password')}
-          error={errors.password}
-          required
-        />
+        {!isForgot && (
+          <TextField
+            id="password"
+            label="Password"
+            type="password"
+            autoComplete={isRegister ? 'new-password' : 'current-password'}
+            value={values.password}
+            onChange={set('password')}
+            error={errors.password}
+            required
+          />
+        )}
+
+        {mode === 'signIn' && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('forgotPassword')
+              setErrors({})
+            }}
+            className="self-end text-xs text-text-muted underline underline-offset-4"
+          >
+            Forgot password?
+          </button>
+        )}
 
         {isRegister && (
           <Checkbox
@@ -132,22 +178,37 @@ export default function SignInForm({ onSignIn, onRegister }) {
         )}
 
         <Button variant="solid-dark" type="submit" className="mt-2" disabled={busy}>
-          {busy ? 'One moment…' : isRegister ? 'Create account' : 'Sign in'}
+          {busy ? 'One moment…' : isForgot ? 'Send reset link' : isRegister ? 'Create account' : 'Sign in'}
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-text-muted">
-        {isRegister ? 'Already have an account?' : 'New here?'}{' '}
-        <button
-          type="button"
-          onClick={() => {
-            setMode(isRegister ? 'signIn' : 'register')
-            setErrors({})
-          }}
-          className="underline underline-offset-4"
-        >
-          {isRegister ? 'Sign in' : 'Create one'}
-        </button>
+        {isForgot ? (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('signIn')
+              setErrors({})
+            }}
+            className="underline underline-offset-4"
+          >
+            Back to sign in
+          </button>
+        ) : (
+          <>
+            {isRegister ? 'Already have an account?' : 'New here?'}{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setMode(isRegister ? 'signIn' : 'register')
+                setErrors({})
+              }}
+              className="underline underline-offset-4"
+            >
+              {isRegister ? 'Sign in' : 'Create one'}
+            </button>
+          </>
+        )}
       </p>
     </div>
   )

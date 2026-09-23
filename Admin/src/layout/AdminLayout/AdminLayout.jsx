@@ -12,6 +12,17 @@ import PermMediaIcon from '@mui/icons-material/PermMedia'
 import HomeIcon from '@mui/icons-material/HomeOutlined'
 import ReceiptIcon from '@mui/icons-material/ReceiptLong'
 import PeopleIcon from '@mui/icons-material/People'
+import TuneIcon from '@mui/icons-material/Tune'
+import QuizIcon from '@mui/icons-material/QuizOutlined'
+import SortIcon from '@mui/icons-material/SwapVert'
+import InventoryTwoIcon from '@mui/icons-material/Warehouse'
+import DiscountIcon from '@mui/icons-material/LocalOfferOutlined'
+import ArticleIcon from '@mui/icons-material/ArticleOutlined'
+import HelpIcon from '@mui/icons-material/HelpOutlineOutlined'
+import CampaignIcon from '@mui/icons-material/CampaignOutlined'
+import ViewSidebarIcon from '@mui/icons-material/ViewSidebarOutlined'
+import AccountTreeIcon from '@mui/icons-material/AccountTreeOutlined'
+import SettingsIcon from '@mui/icons-material/SettingsOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import LogoutIcon from '@mui/icons-material/Logout'
 import { useAuth } from '../../auth/useAuth'
@@ -24,12 +35,23 @@ const DRAWER_WIDTH = 236
 const NAV = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon, end: true },
   { to: '/products', label: 'Products', icon: InventoryIcon },
-  { to: '/collections', label: 'Collections', icon: CollectionsIcon, soon: true },
-  { to: '/categories', label: 'Categories', icon: CategoryIcon, soon: true },
+  { to: '/collections', label: 'Collections', icon: CollectionsIcon },
+  { to: '/categories', label: 'Categories', icon: CategoryIcon },
   { to: '/media', label: 'Media', icon: PermMediaIcon },
   { to: '/content/homepage', label: 'Homepage', icon: HomeIcon },
-  { to: '/orders', label: 'Orders', icon: ReceiptIcon, soon: true },
+  { to: '/content/pages', label: 'Pages', icon: ArticleIcon },
+  { to: '/content/faqs', label: 'FAQs', icon: HelpIcon },
+  { to: '/content/navigation', label: 'Navigation', icon: AccountTreeIcon },
+  { to: '/content/footer', label: 'Footer', icon: ViewSidebarIcon },
+  { to: '/content/announcements', label: 'Announcement bar', icon: CampaignIcon },
+  { to: '/orders', label: 'Orders', icon: ReceiptIcon },
+  { to: '/facets', label: 'Facets', icon: TuneIcon },
+  { to: '/quiz', label: 'Quiz', icon: QuizIcon },
+  { to: '/sort-and-filters', label: 'Sort & filters', icon: SortIcon },
+  { to: '/inventory', label: 'Inventory', icon: InventoryTwoIcon },
+  { to: '/discounts', label: 'Discounts', icon: DiscountIcon },
   { to: '/customers', label: 'Customers', icon: PeopleIcon },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
 function SidebarContent({ onNavigate }) {

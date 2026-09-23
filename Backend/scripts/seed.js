@@ -157,7 +157,7 @@ async function seed({ skipMedia = false } = {}) {
     ProductRoutineProduct, Facet, FacetValue, ProductFacetValue, PriceRange, SortOption,
     QuizQuestion, QuizAnswer, QuizAnswerValue, HomepageSection, StaticPage, PageSection,
     Faq, NavItem, FooterLinkGroup, FooterLink, Announcement, AdminUser, Customer, Address,
-    Order, OrderItem, OrderStatusEvent, Payment, SeedRecord,
+    Order, OrderItem, OrderStatusEvent, Payment, SeedRecord, DiscountCode,
   } = models
 
   const t = await sequelize.transaction()
@@ -267,6 +267,17 @@ async function seed({ skipMedia = false } = {}) {
       { transaction: t },
     )
     track('tax_rates', taxRate.id)
+
+    // --- discount codes ---------------------------------------------------------------
+    const discountCodes = [
+      { code: 'WELCOME10', kind: 'percent', value: 10, minSubtotal: 0 },
+      { code: 'SAVE500', kind: 'fixed', value: 500, minSubtotal: 5000 },
+      { code: 'FREESHIP', kind: 'free_shipping', value: 0, minSubtotal: 10000 },
+    ]
+    for (const discount of discountCodes) {
+      const row = await DiscountCode.create(discount, { transaction: t })
+      track('discount_codes', row.id)
+    }
 
     // --- facets ---------------------------------------------------------------------
     const facetByKey = {}

@@ -10,7 +10,7 @@ import EmptyState from '../../components/Common/EmptyState/EmptyState'
 import { useCart } from '../../context/useCart'
 import { cartLineFrom } from '../../context/cartLine'
 import { EMPTY, useUpsells } from '../../data/useCatalog'
-import { cartConfig, cartCopy } from '../../config/cart'
+import { cartConfig, cartEmptyCopy } from '../../config/cart'
 import { ROUTES, collectionPath } from '../../config/routes'
 
 // The drawer's "View Cart" destination — same pieces, laid out wide.
@@ -21,6 +21,7 @@ export default function Cart() {
     subtotal,
     compareSubtotal,
     savings,
+    discount,
     remainingForFreeShipping,
     shippingProgress,
     setQuantity,
@@ -40,9 +41,9 @@ export default function Cart() {
       <section className="mx-auto max-w-7xl px-6 py-12 md:px-10">
         {items.length === 0 ? (
           <EmptyState
-            title={cartCopy.empty.title}
-            body={cartCopy.empty.body}
-            actionLabel={cartCopy.empty.action}
+            title={cartEmptyCopy.title}
+            body={cartEmptyCopy.body}
+            actionLabel={cartEmptyCopy.action}
             onAction={() => navigate(collectionPath('all'))}
           />
         ) : (
@@ -78,6 +79,7 @@ export default function Cart() {
                 subtotal={subtotal}
                 compareSubtotal={compareSubtotal}
                 savings={savings}
+                discount={discount}
               />
               <div className="flex flex-col gap-3 px-5 pb-5">
                 <Button variant="solid-dark" to={ROUTES.checkout} fullWidth>

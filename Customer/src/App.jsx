@@ -7,6 +7,7 @@ import Cart from './pages/Cart/Cart'
 import Checkout from './pages/Checkout/Checkout'
 import OrderConfirmed from './pages/OrderConfirmed/OrderConfirmed'
 import Account from './pages/Account/Account'
+import ResetPassword from './pages/ResetPassword/ResetPassword'
 import Search from './pages/Search/Search'
 import Page from './pages/Page/Page'
 import NotFound from './pages/NotFound/NotFound'
@@ -28,8 +29,10 @@ export default function App() {
         <Route path={ROUTE_PATTERNS.checkout} element={<Checkout />} />
         <Route path={ROUTE_PATTERNS.orderConfirmed} element={<OrderConfirmed />} />
 
-        {/* More specific order route first, so /account/orders/:id does not match :section. */}
+        {/* More specific routes first, so neither /account/orders/:id nor
+            /account/reset-password is swallowed by the generic :section. */}
         <Route path={ROUTE_PATTERNS.orderDetail} element={<Account view="order" />} />
+        <Route path={ROUTE_PATTERNS.resetPassword} element={<ResetPassword />} />
         <Route path={ROUTE_PATTERNS.account} element={<Account />} />
         <Route path={ROUTE_PATTERNS.accountSection} element={<Account />} />
 

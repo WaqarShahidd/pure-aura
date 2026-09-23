@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { site } from '../config/site'
 import { navigation } from '../config/navigation'
 import { footerLinkGroups, footerAbout } from '../config/footerLinks'
+import { cartCopyFallback } from '../config/cart'
 
 // Site chrome: header, nav, footer, announcements, settings. One request, fetched once by
 // Layout and effectively static for the session.
@@ -17,7 +18,7 @@ const FALLBACK = {
     tagline: site.tagline,
     currency: 'PKR',
     footerAbout,
-    cartCopy: null,
+    cartCopy: cartCopyFallback,
     freeShippingThreshold: 28000,
     reservationMinutes: 10,
     footerPaymentIcons: site.paymentIcons,
@@ -39,6 +40,15 @@ export function useBootstrap() {
   })
 
   return query.data ?? FALLBACK
+}
+
+// Every cart-copy consumer wants the same thing: today's templates, filled in with
+// `fill()`. Merged over the fallback rather than trusted outright, so a partially-edited
+// setting (an admin saves before finishing every field) degrades to the known-good string
+// per key instead of rendering empty.
+export function useCartCopy() {
+  const { settings } = useBootstrap()
+  return { ...cartCopyFallback, ...(settings.cartCopy ?? {}) }
 }
 
 export function useHomepage() {

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
-import { isTest } from '../../config/env.js'
+import { env, isTest } from '../../config/env.js'
 import models from '../../db/models/index.js'
 import { validate } from '../../middleware/validate.js'
 import {
@@ -10,10 +10,14 @@ import {
   hashPassword,
   issueRefreshToken,
   refreshCookieOptions,
+  requestPasswordReset,
+  resetPassword,
   revokeRefreshToken,
   rotateRefreshToken,
   signAccessToken,
 } from '../../services/authService.js'
+import { sendMail } from '../../lib/mailer.js'
+import { passwordResetEmail } from '../../emails/passwordReset.js'
 import { conflict, unauthorized } from '../../lib/errors.js'
 
 const { Customer } = models
@@ -123,6 +127,40 @@ router.post(
         customer: serializeCustomer(customer),
       },
     })
+  }),
+)
+
+router.post(
+  '/auth/forgot-password',
+  limiter(3, 60),
+  validate(z.object({ email: EMAIL })),
+  asyncRoute(async (req, res) => {
+    const result = await requestPasswordReset(req.body.email)
+
+    // The response is identical whether or not the email is registered - answering
+    // differently would turn this endpoint into a way to test which emails have accounts.
+    if (result) {
+      const resetUrl = `${env.STOREFRONT_ORIGIN}/account/reset-password?token=${encodeURIComponent(result.token)}`
+      const email = passwordResetEmail({ resetUrl })
+      await sendMail({ to: result.customer.email, ...email })
+    }
+
+    res.status(202).json({ data: { sent: true } })
+  }),
+)
+
+router.post(
+  '/auth/reset-password',
+  limiter(5, 60),
+  validate(
+    z.object({
+      token: z.string().min(1, 'Required'),
+      password: z.string().min(8, 'Use at least 8 characters'),
+    }),
+  ),
+  asyncRoute(async (req, res) => {
+    const customer = await resetPassword(req.body.token, req.body.password)
+    res.json({ data: await establishSession(res, customer, req) })
   }),
 )
 

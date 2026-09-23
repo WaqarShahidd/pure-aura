@@ -5,3 +5,4 @@ seed/assets
 .env.*
 !.env.example
 coverage
+backups

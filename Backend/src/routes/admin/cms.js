@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.js'
 import { requireRole } from '../../middleware/auth.js'
 import { auditFrom } from '../../services/auditService.js'
 import { schemaForSection } from '../../schemas/homepage.js'
+import * as navService from '../../services/adminNavService.js'
 import { mediaUrl } from '../../serializers/media.js'
 import { badRequest, notFound, validationFailed } from '../../lib/errors.js'
 
@@ -312,6 +313,54 @@ router.post(
     await other.update({ position: itemPosition })
 
     res.json({ data: { moved: true } })
+  }),
+)
+
+const navItemSchema = z.object({
+  parentId: z.string().uuid().nullish(),
+  kind: z.enum(['root', 'group', 'column', 'link']),
+  label: z.string().min(1, 'Required'),
+  layout: z.enum(['mega', 'flyout', 'list', 'link']).nullish(),
+  targetType: z.enum(['collection', 'product', 'page', 'policy', 'custom', 'none']).default('none'),
+  targetId: z.string().uuid().nullish(),
+  customHref: z.string().nullish(),
+  mediaId: z.string().uuid().nullish(),
+  seed: z.string().nullish(),
+  highlight: z.boolean().default(false),
+  allLabel: z.string().nullish(),
+  allHref: z.string().nullish(),
+  isActive: z.boolean().default(true),
+})
+
+router.post(
+  '/nav-items',
+  requireRole('manager'),
+  validate(navItemSchema),
+  asyncRoute(async (req, res) => {
+    const item = await navService.createNavItem(req.body)
+    await auditFrom(req)({ action: 'nav_item.create', entityType: 'nav_item', entityId: item.id, after: item })
+    res.status(201).json({ data: item })
+  }),
+)
+
+router.patch(
+  '/nav-items/:id',
+  requireRole('manager'),
+  validate(navItemSchema.omit({ kind: true, parentId: true }).partial()),
+  asyncRoute(async (req, res) => {
+    const { before, after } = await navService.updateNavItem(req.params.id, req.body)
+    await auditFrom(req)({ action: 'nav_item.update', entityType: 'nav_item', entityId: req.params.id, before, after })
+    res.json({ data: after })
+  }),
+)
+
+router.delete(
+  '/nav-items/:id',
+  requireRole('manager'),
+  asyncRoute(async (req, res) => {
+    await navService.deleteNavItem(req.params.id)
+    await auditFrom(req)({ action: 'nav_item.delete', entityType: 'nav_item', entityId: req.params.id })
+    res.status(204).end()
   }),
 )
 

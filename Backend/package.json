@@ -14,6 +14,8 @@
     "seed": "node scripts/seed.js",
     "unseed": "node scripts/unseed.js",
     "create-admin": "node scripts/createAdmin.js",
+    "backup": "node scripts/backupDb.js",
+    "restore": "node scripts/restoreDb.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -30,6 +32,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.10",
     "pg": "^8.13.1",
     "pino": "^9.6.0",
     "pino-http": "^10.3.0",
@@ -39,8 +42,8 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "eslint": "^10.10.0",
     "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "supertest": "^7.0.0",
     "vitest": "^2.1.8"

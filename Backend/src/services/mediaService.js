@@ -51,7 +51,11 @@ export async function uploadMedia({
 
   // Sniff the magic bytes. A client-supplied Content-Type is a claim, not evidence, and
   // trusting it is how an executable gets stored as image/png.
-  const sniffed = await fileTypeFromBuffer(buffer)
+  //
+  // A short or corrupted buffer makes the sniffer throw rather than return undefined -
+  // that is still just "not a file we recognise", not a server error, so it is folded
+  // into the same unprocessable response below instead of reaching the error handler.
+  const sniffed = await fileTypeFromBuffer(buffer).catch(() => null)
   const mime = sniffed?.mime
 
   const isImage = mime && ALLOWED_IMAGE_MIMES.has(mime)
@@ -105,7 +109,15 @@ export async function uploadMedia({
 
       derived.push({
         label: variant.label,
-        key: `derived/${datePath()}/${id}-${variant.label}.webp`,
+        // A private original (a bank transfer proof) must produce a private thumbnail
+        // too. `derived/` is one of the two prefixes served statically to anyone, by key
+        // alone - a private asset's variant living there would be an unauthenticated
+        // leak of the one thing this visibility flag exists to protect, reachable by
+        // anyone who guessed or observed the uuid.
+        key:
+          visibility === 'private'
+            ? `${PRIVATE_PREFIX}/${datePath()}/${id}-${variant.label}.webp`
+            : `derived/${datePath()}/${id}-${variant.label}.webp`,
         width: output.info.width,
         height: output.info.height,
         bytes: output.data.length,

@@ -69,6 +69,25 @@ export default function AuthProvider({ children }) {
     [],
   )
 
+  // Deliberately returns nothing to key off — the request always "succeeds" from the
+  // caller's point of view whether or not the email is registered, matching the server's
+  // own refusal to answer that question.
+  const forgotPassword = useCallback(async (email) => {
+    await api('/auth/forgot-password', { method: 'POST', body: { email } })
+  }, [])
+
+  const resetPassword = useCallback(
+    async (token, password) => {
+      const data = await api('/auth/reset-password', { method: 'POST', body: { token, password } })
+      setAccessToken(data.accessToken)
+      setCustomer(data.customer)
+      setStatus('signed-in')
+      queryClient.removeQueries({ queryKey: ['account'] })
+      return data.customer
+    },
+    [queryClient],
+  )
+
   const signOut = useCallback(async () => {
     try {
       await api('/auth/logout', { method: 'POST' })
@@ -85,10 +104,12 @@ export default function AuthProvider({ children }) {
       isChecking: status === 'checking',
       signIn,
       register,
+      forgotPassword,
+      resetPassword,
       signOut,
       setCustomer,
     }),
-    [customer, status, signIn, register, signOut],
+    [customer, status, signIn, register, forgotPassword, resetPassword, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

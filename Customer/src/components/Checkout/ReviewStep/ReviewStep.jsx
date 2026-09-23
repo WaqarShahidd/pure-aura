@@ -1,5 +1,3 @@
-import { DELIVERY_METHODS } from '../../../config/checkout'
-
 function Block({ title, onEdit, children }) {
   return (
     <div className="rounded-2xl border border-charcoal/15 px-5 py-4">
@@ -18,9 +16,19 @@ function Block({ title, onEdit, children }) {
   )
 }
 
-export default function ReviewStep({ values, onEditStep }) {
-  const method = DELIVERY_METHODS.find((candidate) => candidate.id === values.delivery)
+// What the payment block shows depends on the method's kind, not just whether a card
+// number was typed - COD and bank transfer never touch the card fields at all.
+function paymentSummary(values, paymentMethods) {
+  const method = paymentMethods.find((candidate) => candidate.code === values.paymentMethod)
+  if (!method) return 'No payment method chosen'
+  if (method.kind !== 'gateway') return method.label
+
   const last4 = values.cardNumber.replace(/\s+/g, '').slice(-4)
+  return last4 ? `${method.label} ending ${last4}` : method.label
+}
+
+export default function ReviewStep({ values, onEditStep, deliveryMethods = [], paymentMethods = [] }) {
+  const method = deliveryMethods.find((candidate) => candidate.id === values.delivery)
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,7 +56,7 @@ export default function ReviewStep({ values, onEditStep }) {
       </Block>
 
       <Block title="Payment" onEdit={() => onEditStep(3)}>
-        {last4 ? `Card ending ${last4}` : 'Card details entered'}
+        {paymentSummary(values, paymentMethods)}
         <br />
         {values.billingSame ? 'Billing address same as shipping' : 'Separate billing address'}
       </Block>

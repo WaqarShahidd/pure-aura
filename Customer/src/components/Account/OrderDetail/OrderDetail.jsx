@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import Badge from '../../Common/Badge/Badge'
 import ImagePlaceholder from '../../Common/ImagePlaceholder/ImagePlaceholder'
 import Button from '../../Common/Button/Button'
+import OrderTimeline from '../OrderTimeline/OrderTimeline'
 import { formatOrderDate, statusMeta } from '../../../config/orders'
 import { ROUTES, productPath } from '../../../config/routes'
 import { formatPrice } from '../../../utils/formatPrice'
@@ -103,6 +104,8 @@ export default function OrderDetail({ order }) {
           </Button>
         </div>
       </div>
+
+      <OrderTimeline events={order.events} />
     </div>
   )
 }

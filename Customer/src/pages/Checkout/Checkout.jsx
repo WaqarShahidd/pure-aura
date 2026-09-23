@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PageHero from '../../components/Page/PageHero/PageHero'
 import CheckoutSteps from '../../components/Checkout/CheckoutSteps/CheckoutSteps'
@@ -84,10 +84,20 @@ export default function Checkout() {
   const { customer } = useAuth()
   const { methods, deliveryMethods } = useCheckoutOptions()
   const placeOrder = usePlaceOrder()
-  const { items, subtotal, savings, clearCart } = useCart()
+  const { items, subtotal, savings, discount, cartToken, clearCart } = useCart()
 
   const [stepIndex, setStepIndex] = useState(0)
-  const [values, setValues] = useState(INITIAL)
+  // A signed-in customer shouldn't retype what the account already knows. This only sees
+  // `customer` at mount - the profile usually resolves at app boot, before the cart page
+  // is even reached, so it's already there by the time someone gets to checkout. If it
+  // isn't yet, the fields simply start blank, same as before.
+  const [values, setValues] = useState(() => ({
+    ...INITIAL,
+    email: customer?.email ?? '',
+    phone: customer?.phone ?? '',
+    firstName: customer?.firstName ?? '',
+    lastName: customer?.lastName ?? '',
+  }))
   const [errors, setErrors] = useState({})
 
   const step = CHECKOUT_STEPS[stepIndex]
@@ -103,16 +113,23 @@ export default function Checkout() {
   }, [])
 
   const chosenDelivery = deliveryMethods.find((method) => method.id === values.delivery)
-  const shipping = chosenDelivery
-    ? chosenDelivery.freeOver != null && subtotal >= chosenDelivery.freeOver
+  // free_shipping zeroes the shipping line itself rather than reducing the subtotal -
+  // mirrors applyDiscount() on the backend, which returns 0 for that kind for the same
+  // reason: the discount amount and "shipping is free" are two different facts.
+  const shipping =
+    discount?.kind === 'free_shipping'
       ? 0
-      : chosenDelivery.price
-    : 0
+      : chosenDelivery
+        ? chosenDelivery.freeOver != null && subtotal >= chosenDelivery.freeOver
+          ? 0
+          : chosenDelivery.price
+        : 0
+  const discountAmount = discount && discount.kind !== 'free_shipping' ? discount.amount : 0
 
-  // Prices INCLUDE tax, so the total is subtotal + shipping and the tax line is the
-  // portion contained within it. The old code added 8% on top, which charged it twice
-  // against a catalogue that was already tax-inclusive.
-  const total = subtotal + shipping
+  // Prices INCLUDE tax, so the total is subtotal - discount + shipping, and the tax line
+  // is the portion contained within it. The old code added 8% on top, which charged it
+  // twice against a catalogue that was already tax-inclusive.
+  const total = subtotal - discountAmount + shipping
   const taxRateBp = 1800
   const tax = Math.round(total - (total * 10000) / (10000 + taxRateBp))
 
@@ -144,6 +161,8 @@ export default function Checkout() {
         delivery: values.delivery,
         paymentMethod: values.paymentMethod,
         billingSame: values.billingSame,
+        cartToken,
+        discountCode: discount?.code ?? null,
         lines: items.map((line) => ({
           handle: line.handle,
           variantId: line.variantId,
@@ -162,11 +181,14 @@ export default function Checkout() {
       })
     } catch (error) {
       const details = error.details ?? []
-      setErrors(
-        details.length > 0
-          ? Object.fromEntries(details.map((detail) => [detail.field, detail.message]))
-          : { form: error.message ?? 'We could not place that order' },
-      )
+      // Per-field errors highlight a field when one is actually on screen (paymentMethod
+      // is); `form` always gets a message too, because some failures - a stale discount
+      // code, a line that sold out while checkout was open - have no field to attach to
+      // and would otherwise fail with no visible feedback at all.
+      setErrors({
+        ...Object.fromEntries(details.map((detail) => [detail.field, detail.message])),
+        form: details[0]?.message ?? error.message ?? 'We could not place that order',
+      })
     }
   }
 
@@ -219,7 +241,16 @@ export default function Checkout() {
             {step.id === 'payment' && (
               <PaymentStep values={values} errors={errors} onChange={onChange} methods={methods} />
             )}
-            {step.id === 'review' && <ReviewStep values={values} onEditStep={setStepIndex} />}
+            {step.id === 'review' && (
+              <ReviewStep
+                values={values}
+                onEditStep={setStepIndex}
+                deliveryMethods={deliveryMethods}
+                paymentMethods={methods}
+              />
+            )}
+
+            {errors.form && <p className="text-sm text-accent">{errors.form}</p>}
 
             <div className="flex items-center gap-4">
               {stepIndex > 0 && (
@@ -237,6 +268,8 @@ export default function Checkout() {
             items={items}
             subtotal={subtotal}
             savings={savings}
+            discount={discount}
+            discountAmount={discountAmount}
             shipping={shipping}
             tax={tax}
             total={total}

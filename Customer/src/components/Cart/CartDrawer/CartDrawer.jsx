@@ -13,7 +13,7 @@ import EmptyState from '../../Common/EmptyState/EmptyState'
 import { useCart } from '../../../context/useCart'
 import { cartLineFrom } from '../../../context/cartLine'
 import { EMPTY, useUpsells } from '../../../data/useCatalog'
-import { cartConfig, cartCopy } from '../../../config/cart'
+import { cartConfig, cartEmptyCopy } from '../../../config/cart'
 import { ROUTES, collectionPath } from '../../../config/routes'
 
 export default function CartDrawer() {
@@ -22,8 +22,9 @@ export default function CartDrawer() {
     items,
     isOpen,
     reservedUntil,
+    holdError,
     note,
-    discountCodes,
+    discount,
     count,
     subtotal,
     compareSubtotal,
@@ -67,9 +68,9 @@ export default function CartDrawer() {
         {items.length === 0 ? (
           <div className="flex flex-1 items-center justify-center px-5">
             <EmptyState
-              title={cartCopy.empty.title}
-              body={cartCopy.empty.body}
-              actionLabel={cartCopy.empty.action}
+              title={cartEmptyCopy.title}
+              body={cartEmptyCopy.body}
+              actionLabel={cartEmptyCopy.action}
               onAction={() => goTo(collectionPath('all'))}
             />
           </div>
@@ -77,6 +78,9 @@ export default function CartDrawer() {
           <>
             <div className="flex-1 overflow-y-auto">
               <ReservationBanner reservedUntil={reservedUntil} />
+              {holdError && (
+                <p className="bg-accent/10 px-5 py-2 text-xs text-accent">{holdError}</p>
+              )}
               <FreeShippingMeter
                 remaining={remainingForFreeShipping}
                 progress={shippingProgress}
@@ -97,7 +101,8 @@ export default function CartDrawer() {
               <CartActions
                 note={note}
                 onNoteChange={setNote}
-                discountCodes={discountCodes}
+                discount={discount}
+                subtotal={subtotal}
                 onApplyDiscount={applyDiscount}
                 onRemoveDiscount={removeDiscount}
               />
@@ -114,6 +119,7 @@ export default function CartDrawer() {
                 subtotal={subtotal}
                 compareSubtotal={compareSubtotal}
                 savings={savings}
+                discount={discount}
               />
 
               <div className="flex gap-3 px-5 pb-3">

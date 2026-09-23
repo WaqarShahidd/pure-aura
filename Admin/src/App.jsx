@@ -9,6 +9,22 @@ import ProductEditor from './pages/Products/ProductEditor'
 import MediaLibrary from './pages/Media/MediaLibrary'
 import HomepageEditor from './pages/Content/HomepageEditor'
 import CustomerList from './pages/Customers/CustomerList'
+import OrderList from './pages/Orders/OrderList'
+import OrderDetail from './pages/Orders/OrderDetail'
+import CollectionList from './pages/Collections/CollectionList'
+import CollectionEditor from './pages/Collections/CollectionEditor'
+import CategoryList from './pages/Categories/CategoryList'
+import FacetList from './pages/Facets/FacetList'
+import QuizEditor from './pages/Quiz/QuizEditor'
+import SortAndFiltersEditor from './pages/SortAndFilters/SortAndFiltersEditor'
+import InventoryList from './pages/Inventory/InventoryList'
+import DiscountList from './pages/Discounts/DiscountList'
+import PagesEditor from './pages/Content/PagesEditor'
+import FaqsEditor from './pages/Content/FaqsEditor'
+import AnnouncementsEditor from './pages/Content/AnnouncementsEditor'
+import FooterEditor from './pages/Content/FooterEditor'
+import NavigationEditor from './pages/Content/NavigationEditor'
+import SettingsPage from './pages/Settings/SettingsPage'
 
 export default function App() {
   const { isSignedIn, isChecking } = useAuth()
@@ -40,8 +56,24 @@ export default function App() {
         <Route path="products" element={<ProductList />} />
         <Route path="products/new" element={<ProductEditor />} />
         <Route path="products/:id" element={<ProductEditor />} />
+        <Route path="collections" element={<CollectionList />} />
+        <Route path="collections/:id" element={<CollectionEditor />} />
+        <Route path="categories" element={<CategoryList />} />
+        <Route path="facets" element={<FacetList />} />
+        <Route path="quiz" element={<QuizEditor />} />
+        <Route path="sort-and-filters" element={<SortAndFiltersEditor />} />
+        <Route path="inventory" element={<InventoryList />} />
+        <Route path="discounts" element={<DiscountList />} />
         <Route path="media" element={<MediaLibrary />} />
         <Route path="content/homepage" element={<HomepageEditor />} />
+        <Route path="content/pages" element={<PagesEditor />} />
+        <Route path="content/faqs" element={<FaqsEditor />} />
+        <Route path="content/announcements" element={<AnnouncementsEditor />} />
+        <Route path="content/footer" element={<FooterEditor />} />
+        <Route path="content/navigation" element={<NavigationEditor />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="orders" element={<OrderList />} />
+        <Route path="orders/:number" element={<OrderDetail />} />
         <Route path="customers" element={<CustomerList />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

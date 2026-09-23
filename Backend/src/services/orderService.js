@@ -4,7 +4,9 @@ import { sequelize } from '../db/index.js'
 import models from '../db/models/index.js'
 import { mediaUrl } from '../serializers/media.js'
 import { nextBankReference, nextOrderNumber } from '../lib/orderNumber.js'
-import { orderTotals, shippingCostFor } from '../lib/money.js'
+import { applyDiscount, orderTotals, shippingCostFor } from '../lib/money.js'
+import { releaseHoldsForCart } from './inventoryService.js'
+import { resolveDiscount, redeemDiscount } from './discountService.js'
 import {
   STATUS_TIMESTAMPS,
   allowedFor,
@@ -12,6 +14,10 @@ import {
   customerCanCancel,
 } from '../lib/orderStatus.js'
 import { conflict, forbidden, notFound, unprocessable } from '../lib/errors.js'
+import { sendMail } from '../lib/mailer.js'
+import { orderConfirmedEmail } from '../emails/orderConfirmed.js'
+import { orderShippedEmail } from '../emails/orderShipped.js'
+import { paymentVerifiedEmail } from '../emails/paymentVerified.js'
 
 const {
   Order, OrderItem, OrderStatusEvent, Payment, PaymentMethod, DeliveryMethod, TaxRate,
@@ -149,7 +155,7 @@ export async function createOrder(payload, { customer = null } = {}) {
     }
   }
 
-  return sequelize.transaction(async (transaction) => {
+  const result = await sequelize.transaction(async (transaction) => {
     // Locked for update so two simultaneous orders for the last unit cannot both succeed.
     //
     // `of` matters: Postgres refuses FOR UPDATE on the nullable side of an outer join, and
@@ -210,15 +216,29 @@ export async function createOrder(payload, { customer = null } = {}) {
       })
     }
 
-    const shipping = shippingCostFor(
-      { priceAmount: deliveryMethod.priceAmount, freeOverAmount: deliveryMethod.freeOverAmount },
+    // Re-derived from the database, never from whatever the cart drawer's preview call
+    // returned - the same reason payment and delivery methods are re-validated here too.
+    const discount = await resolveDiscount({
+      code: payload.discountCode,
       subtotal,
-    )
+      lineProductIds: items.map((item) => item.productId),
+      customerId: customer?.id ?? null,
+      transaction,
+    })
+    const discountAmount = discount ? applyDiscount(discount, subtotal) : 0
+
+    const shipping =
+      discount?.kind === 'free_shipping'
+        ? 0
+        : shippingCostFor(
+            { priceAmount: deliveryMethod.priceAmount, freeOverAmount: deliveryMethod.freeOverAmount },
+            subtotal,
+          )
 
     const taxRate = await resolveTaxRate(payload.country)
     const totals = orderTotals({
       subtotal,
-      discount: 0,
+      discount: discountAmount,
       shipping,
       taxRateBp: taxRate?.rateBp ?? 0,
     })
@@ -238,6 +258,8 @@ export async function createOrder(payload, { customer = null } = {}) {
         accessTokenHash: hashToken(accessToken),
         status,
         paymentStatus: 'unpaid',
+        discountId: discount?.id ?? null,
+        discountCode: discount?.code ?? null,
         ...totals,
         taxInclusive: taxRate?.isInclusive ?? true,
         deliveryMethodId: deliveryMethod.id,
@@ -311,8 +333,29 @@ export async function createOrder(payload, { customer = null } = {}) {
       { transaction },
     )
 
-    return { order, accessToken, referenceCode }
+    if (discount) {
+      await redeemDiscount(discount, {
+        orderId: order.id,
+        customerId: customer?.id ?? null,
+        amount: discountAmount,
+        transaction,
+      })
+    }
+
+    // The cart's soft holds are superseded by the real decrement above - release them
+    // rather than leaving them to expire on their own clock and briefly under-report
+    // availability for whatever else was in the same cart.
+    await releaseHoldsForCart(payload.cartToken, order.id, { transaction })
+
+    return { order, items, accessToken, referenceCode }
   })
+
+  // Sent after the transaction has committed, never inside it - a slow or unreachable
+  // mail server must not hold the row lock open or roll the order back.
+  const email = orderConfirmedEmail({ order: result.order, items: result.items })
+  await sendMail({ to: payload.email, ...email })
+
+  return { order: result.order, accessToken: result.accessToken, referenceCode: result.referenceCode }
 }
 
 /**
@@ -325,7 +368,7 @@ export async function transitionOrder(
   toStatus,
   { actorType, actorId, role, note = null, metadata = {} } = {},
 ) {
-  return sequelize.transaction(async (transaction) => {
+  const updatedOrder = await sequelize.transaction(async (transaction) => {
     const order = await Order.findByPk(orderId, { transaction, lock: transaction.LOCK.UPDATE })
     if (!order) throw notFound('No such order')
 
@@ -396,6 +439,21 @@ export async function transitionOrder(
 
     return order
   })
+
+  if (toStatus === 'handed_to_courier') {
+    const courier = updatedOrder.courierId ? await Courier.findByPk(updatedOrder.courierId) : null
+    const email = orderShippedEmail({
+      order: {
+        number: updatedOrder.number,
+        trackingNumber: updatedOrder.trackingNumber,
+        trackingUrl: updatedOrder.trackingUrl,
+        courierName: courier?.name,
+      },
+    })
+    await sendMail({ to: updatedOrder.contactEmail, ...email })
+  }
+
+  return updatedOrder
 }
 
 export async function setFulfilment(orderId, { courierId, trackingNumber }) {
@@ -418,7 +476,7 @@ export async function setFulfilment(orderId, { courierId, trackingNumber }) {
 }
 
 export async function verifyPayment(orderId, paymentId, { adminId, approve, reason }) {
-  return sequelize.transaction(async (transaction) => {
+  const result = await sequelize.transaction(async (transaction) => {
     const payment = await Payment.findOne({
       where: { id: paymentId, orderId },
       transaction,
@@ -465,6 +523,13 @@ export async function verifyPayment(orderId, paymentId, { adminId, approve, reas
 
     return { order, payment }
   })
+
+  if (approve) {
+    const email = paymentVerifiedEmail({ order: { number: result.order.number, totalAmount: result.order.totalAmount } })
+    await sendMail({ to: result.order.contactEmail, ...email })
+  }
+
+  return result
 }
 
 export async function attachProof(orderId, mediaId) {

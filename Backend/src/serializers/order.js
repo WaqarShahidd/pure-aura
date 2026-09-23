@@ -17,6 +17,7 @@ export function serializeOrder(order, { includeEvents = true } = {}) {
 
     subtotal: order.subtotalAmount,
     discount: order.discountAmount,
+    discountCode: order.discountCode,
     shipping: order.shippingAmount,
     tax: order.taxAmount,
     taxRateBp: order.taxRateBp,

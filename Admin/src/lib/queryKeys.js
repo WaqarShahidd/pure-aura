@@ -10,4 +10,13 @@ export const queryKeys = {
     list: (params = {}) => ['media', 'list', params],
     usage: (id) => ['media', 'usage', id],
   },
+  categories: {
+    all: ['categories'],
+    detail: (id) => ['categories', 'detail', id],
+  },
+  collections: {
+    all: ['collections'],
+    featured: ['collections', 'featured'],
+    detail: (id) => ['collections', 'detail', id],
+  },
 }

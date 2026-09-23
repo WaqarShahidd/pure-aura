@@ -2,15 +2,16 @@ import { Link } from 'react-router-dom'
 import AddIcon from '@mui/icons-material/Add'
 import ImagePlaceholder from '../../Common/ImagePlaceholder/ImagePlaceholder'
 import PriceTag from '../../Common/PriceTag/PriceTag'
-import { cartCopy } from '../../../config/cart'
+import { useCartCopy } from '../../../data/useContent'
 import { productPath } from '../../../config/routes'
 
 export default function CartUpsells({ products, onAdd, onNavigate }) {
+  const copy = useCartCopy()
   if (products.length === 0) return null
 
   return (
     <div className="border-t border-charcoal/10 px-5 py-4">
-      <h3 className="mb-3 text-sm font-medium">{cartCopy.upsellTitle}</h3>
+      <h3 className="mb-3 text-sm font-medium">{copy.upsellTitle}</h3>
 
       <ul className="flex flex-col gap-3">
         {products.map((product) => (

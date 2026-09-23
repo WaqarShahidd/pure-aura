@@ -26,6 +26,16 @@ export function createApp() {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   )
+  // Helmet doesn't set this one by default. This is a JSON API plus static images - it
+  // has no legitimate use for any browser feature here, so deny everything rather than
+  // list exceptions.
+  app.use((req, res, next) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+    )
+    next()
+  })
   app.use(compression())
   app.use(cookieParser())
   app.use(express.json({ limit: '1mb' }))

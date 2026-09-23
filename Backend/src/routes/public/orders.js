@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { validate } from '../../middleware/validate.js'
 import { optionalCustomer } from '../../middleware/auth.js'
 import * as orders from '../../services/orderService.js'
+import * as inventory from '../../services/inventoryService.js'
+import * as discounts from '../../services/discountService.js'
 import { uploadMedia } from '../../services/mediaService.js'
 import { serializeOrder } from '../../serializers/order.js'
 import models from '../../db/models/index.js'
@@ -25,6 +27,38 @@ router.get(
   '/delivery-methods',
   asyncRoute(async (req, res) => {
     res.json({ data: await orders.listDeliveryMethods() })
+  }),
+)
+
+// Adding to cart calls this. A 422 here is what "two browsers, one unit" resolves to -
+// the loser finds out before checkout, not at it.
+router.post(
+  '/carts/hold',
+  validate(
+    z.object({
+      cartToken: z.string().min(1, 'Required'),
+      variantId: z.string().uuid(),
+      quantity: z.number().int().min(1),
+    }),
+  ),
+  asyncRoute(async (req, res) => {
+    const hold = await inventory.placeHold(req.body)
+    res.status(201).json({ data: { id: hold.id, expiresAt: hold.expiresAt } })
+  }),
+)
+
+// The cart drawer's live check as someone types a code. Not authoritative - createOrder
+// re-validates from scratch, the same way it already does for payment and delivery.
+router.post(
+  '/carts/discount',
+  validate(
+    z.object({
+      code: z.string().min(1, 'Required'),
+      subtotal: z.number().int().min(0),
+    }),
+  ),
+  asyncRoute(async (req, res) => {
+    res.json({ data: await discounts.previewDiscount(req.body) })
   }),
 )
 
@@ -65,6 +99,8 @@ const orderSchema = z.object({
   paymentMethod: z.string().min(1, 'Required'),
   billingSame: z.boolean().default(true),
   note: z.string().nullish(),
+  cartToken: z.string().nullish(),
+  discountCode: z.string().nullish(),
   lines: z
     .array(
       z.object({

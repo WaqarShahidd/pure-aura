@@ -109,6 +109,11 @@ export async function patch(url, body, config) {
   return response.data?.data
 }
 
+export async function put(url, body, config) {
+  const response = await api.put(url, body, config)
+  return response.data?.data
+}
+
 export async function del(url, config) {
   const response = await api.delete(url, config)
   return response.data?.data ?? null

@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { ValidationError as SequelizeValidationError, UniqueConstraintError } from 'sequelize'
+import {
+  ValidationError as SequelizeValidationError,
+  UniqueConstraintError,
+  ForeignKeyConstraintError,
+} from 'sequelize'
 import { ApiError } from '../lib/errors.js'
 import { logger } from '../lib/logger.js'
 import { isProduction } from '../config/env.js'
@@ -46,6 +50,21 @@ export function errorHandler(error, req, res, _next) {
         code: 'ALREADY_EXISTS',
         message: 'That already exists',
         details: fields.map((field) => ({ field, message: 'Already taken' })),
+        requestId: req.id,
+      },
+    })
+  }
+
+  // A RESTRICT foreign key firing means something still references the row being deleted.
+  // Services that can name what (a facet value's quiz question, a category's products)
+  // check for that first and throw a specific message; this is the safety net for
+  // whichever RESTRICT relationship nobody wrote an explicit check for yet - still a
+  // clean 409, never a 500, just a less specific one.
+  if (error instanceof ForeignKeyConstraintError) {
+    return res.status(409).json({
+      error: {
+        code: 'IN_USE',
+        message: 'That is still in use elsewhere and cannot be removed',
         requestId: req.id,
       },
     })

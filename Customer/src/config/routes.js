@@ -12,11 +12,12 @@ export const ROUTES = {
   checkout: '/checkout',
   orderConfirmed: '/checkout/confirmed',
 
-  // Account area. No auth — these render as an already-signed-in shell.
+  // Account area.
   account: '/account',
   accountOrders: '/account/orders',
   accountAddresses: '/account/addresses',
   accountProfile: '/account/profile',
+  resetPassword: '/account/reset-password',
 
   shipping: '/policies/shipping-policy',
   privacy: '/policies/privacy-policy',
@@ -44,6 +45,7 @@ export const ROUTE_PATTERNS = {
   account: '/account',
   accountSection: '/account/:section',
   orderDetail: '/account/orders/:id',
+  resetPassword: '/account/reset-password',
   // One component renders every static page, keyed off the slug.
   policy: '/policies/:slug',
   page: '/pages/:slug',
