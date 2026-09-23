@@ -11,6 +11,11 @@
  *   npm run screenshot -- --no-full             viewport-only, not full page
  *   npm run screenshot -- --out shots/hero.png  custom output path
  *   npm run screenshot -- --port 5200           serve on a different port
+ *   npm run screenshot -- --routes /,/cart      several pages from one server boot
+ *   npm run screenshot -- --dir screenshots/before   write the set somewhere else
+ *
+ * --routes and --dir exist for before/after comparison: capture a set, make a change,
+ * capture it again into a different directory, and diff the two by eye.
  */
 import { chromium } from 'playwright'
 import { spawn, execSync } from 'node:child_process'
@@ -27,11 +32,22 @@ const VIEWPORTS = {
 const DEFAULT_PORT = 5199
 
 function parseArgs(argv) {
-  const args = { path: '/', viewport: 'desktop', full: true, out: null, wait: 600, port: DEFAULT_PORT }
+  const args = {
+    path: '/',
+    routes: null,
+    dir: 'screenshots',
+    viewport: 'desktop',
+    full: true,
+    out: null,
+    wait: 600,
+    port: DEFAULT_PORT,
+  }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--no-full') args.full = false
     else if (arg === '--path') args.path = argv[++i]
+    else if (arg === '--routes') args.routes = argv[++i].split(',')
+    else if (arg === '--dir') args.dir = argv[++i]
     else if (arg === '--viewport') args.viewport = argv[++i]
     else if (arg === '--out') args.out = argv[++i]
     else if (arg === '--wait') args.wait = Number(argv[++i])
@@ -58,9 +74,17 @@ function resolveViewport(name) {
   return { width: Number(match[1]), height: Number(match[2]) }
 }
 
-function defaultOutPath(routePath, viewportName) {
-  const slug = routePath.replace(/^\/|\/$/g, '').replace(/\//g, '-') || 'home'
-  return `screenshots/${slug}-${viewportName}.png`
+function defaultOutPath(routePath, viewportName, dir = 'screenshots') {
+  const slug =
+    routePath
+      .replace(/^\/|\/$/g, '')
+      // A route like /search?q=serum is a perfectly good page and a terrible filename:
+      // Windows rejects ? and =, and the shot fails after the page has already loaded.
+      .replace(/[?=&]/g, '-')
+      .replace(/\//g, '-')
+      .replace(/-+/g, '-') || 'home'
+
+  return `${dir}/${slug}-${viewportName}.png`
 }
 
 async function isPortAnswering(url) {
@@ -104,9 +128,12 @@ function stopDevServer(child) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  args.path = normalizePath(args.path)
+  // --routes captures several pages from ONE dev server boot. That matters for the
+  // before/after comparison the API migration is verified by: a set captured across seven
+  // separate server starts takes seven times as long and gives seven chances for
+  // something incidental to differ between shots.
+  const routes = (args.routes ?? [args.path]).map(normalizePath)
   const viewport = resolveViewport(args.viewport)
-  const outPath = resolve(args.out ?? defaultOutPath(args.path, args.viewport))
   const devUrl = `http://localhost:${args.port}`
 
   // Never reuse a server we didn't start: it may belong to an entirely different project.
@@ -131,23 +158,32 @@ async function main() {
     const page = await context.newPage()
 
     const errors = []
-    page.on('console', (msg) => msg.type() === 'error' && errors.push(msg.text()))
-    page.on('pageerror', (err) => errors.push(err.message))
+    page.on('console', (msg) => msg.type() === 'error' && errors.push(`[${page.url()}] ${msg.text()}`))
+    page.on('pageerror', (err) => errors.push(`[${page.url()}] ${err.message}`))
 
-    await page.goto(`${devUrl}${args.path}`, { waitUntil: 'networkidle' })
-    await page.evaluate(() => document.fonts.ready)
-    // Let entrance transitions and lazy images settle before capturing.
-    await page.waitForTimeout(args.wait)
+    for (const route of routes) {
+      const outPath = resolve(
+        routes.length === 1 && args.out
+          ? args.out
+          : defaultOutPath(route, args.viewport, args.dir),
+      )
 
-    await mkdir(dirname(outPath), { recursive: true })
-    await page.screenshot({ path: outPath, fullPage: args.full })
+      await page.goto(`${devUrl}${route}`, { waitUntil: 'networkidle' })
+      await page.evaluate(() => document.fonts.ready)
+      // Let entrance transitions and lazy images settle before capturing.
+      await page.waitForTimeout(args.wait)
 
-    console.log(`Saved ${outPath}  (${viewport.width}x${viewport.height}${args.full ? ', full page' : ''})`)
+      await mkdir(dirname(outPath), { recursive: true })
+      await page.screenshot({ path: outPath, fullPage: args.full })
+
+      console.log(`Saved ${outPath}  (${viewport.width}x${viewport.height}${args.full ? ', full page' : ''})`)
+    }
+
     if (errors.length) {
       console.log(`\n${errors.length} console error(s):`)
       errors.forEach((e) => console.log(`  - ${e}`))
     } else {
-      console.log('No console errors.')
+      console.log('\nNo console errors.')
     }
   } finally {
     await browser.close()

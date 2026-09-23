@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import OrderList from '../OrderList/OrderList'
-import { account, addresses, orders } from '../../../data/account'
+import { useAddresses, useOrders } from '../../../data/useAccount'
+import { useAuth } from '../../../context/useAuth'
 import { ROUTES } from '../../../config/routes'
 
 function Stat({ label, value, href, linkLabel }) {
@@ -18,13 +19,18 @@ function Stat({ label, value, href, linkLabel }) {
 }
 
 export default function AccountOverview() {
+  const { customer } = useAuth()
+  const { data: orders = [] } = useOrders()
+  const { data: addresses = [] } = useAddresses()
+
+  const account = customer ?? {}
   const defaultAddress = addresses.find((address) => address.isDefault) ?? addresses[0]
 
   return (
     <div className="flex flex-col gap-10">
       <div>
         <h2 className="text-xl font-medium">Hello, {account.firstName}</h2>
-        <p className="mt-1 text-sm text-text-muted">Member since {account.memberSince}</p>
+        <p className="mt-1 text-sm text-text-muted">Member since {account.memberSince ? new Date(account.memberSince).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : '—'}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -50,14 +56,27 @@ export default function AccountOverview() {
             Manage
           </Link>
         </div>
+        {/*
+          Guarded, where this used to dereference defaultAddress.name directly. With mock
+          data there was always an address; now the list arrives asynchronously and a new
+          customer legitimately has none, so both states have to render.
+        */}
         <address className="rounded-2xl border border-charcoal/15 px-5 py-4 text-sm not-italic text-text-muted">
-          <span className="block text-charcoal">{defaultAddress.name}</span>
-          {defaultAddress.line1}
-          {defaultAddress.line2 && <>, {defaultAddress.line2}</>}
-          <br />
-          {defaultAddress.city}, {defaultAddress.region} {defaultAddress.postcode}
-          <br />
-          {defaultAddress.country}
+          {defaultAddress ? (
+            <>
+              <span className="block text-charcoal">{defaultAddress.name}</span>
+              {defaultAddress.line1}
+              {defaultAddress.line2 && <>, {defaultAddress.line2}</>}
+              <br />
+              {[defaultAddress.city, defaultAddress.region, defaultAddress.postcode]
+                .filter(Boolean)
+                .join(', ')}
+              <br />
+              {defaultAddress.country}
+            </>
+          ) : (
+            'No address saved yet.'
+          )}
         </address>
       </section>
     </div>

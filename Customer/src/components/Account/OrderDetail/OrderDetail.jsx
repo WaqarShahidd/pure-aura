@@ -2,13 +2,13 @@ import { Link } from 'react-router-dom'
 import Badge from '../../Common/Badge/Badge'
 import ImagePlaceholder from '../../Common/ImagePlaceholder/ImagePlaceholder'
 import Button from '../../Common/Button/Button'
-import { getAddressById, orderSubtotal, orderTotal } from '../../../data/account'
-import { getProductByHandle } from '../../../data/catalog'
+import { formatOrderDate, statusMeta } from '../../../config/orders'
 import { ROUTES, productPath } from '../../../config/routes'
 import { formatPrice } from '../../../utils/formatPrice'
 
 export default function OrderDetail({ order }) {
-  const address = getAddressById(order.shippingAddressId)
+
+  const address = order.shippingAddress
 
   return (
     <div className="flex flex-col gap-8">
@@ -18,27 +18,26 @@ export default function OrderDetail({ order }) {
             Back to orders
           </Link>
           <h2 className="mt-2 text-xl font-medium">Order {order.id}</h2>
-          <p className="text-sm text-text-muted">Placed {order.placedOn}</p>
+          <p className="text-sm text-text-muted">Placed {formatOrderDate(order.placedOn)}</p>
         </div>
-        <Badge tone={order.status === 'Delivered' ? 'light' : 'dark'}>{order.status}</Badge>
+        <Badge tone={statusMeta(order.status).tone}>{statusMeta(order.status).label}</Badge>
       </div>
 
       <ul className="flex flex-col divide-y divide-charcoal/10 border-y border-charcoal/10">
         {order.items.map((item) => {
-          const product = getProductByHandle(item.handle)
           return (
             <li key={item.handle} className="flex items-center gap-4 py-4">
               <Link to={productPath(item.handle)} className="w-16 shrink-0">
                 <ImagePlaceholder
-                  src={product?.image}
-                  alt={product?.title ?? item.handle}
+                  src={item.image}
+                  alt={item.title}
                   seed={item.handle}
                   rounded="rounded-xl"
                 />
               </Link>
               <div className="flex-1">
                 <Link to={productPath(item.handle)} className="text-sm font-medium">
-                  {product?.title ?? item.handle}
+                  {item.title}
                 </Link>
                 <p className="text-xs text-text-muted">Quantity {item.quantity}</p>
               </div>
@@ -62,9 +61,22 @@ export default function OrderDetail({ order }) {
           </address>
 
           <h3 className="mb-2 mt-5 text-sm font-medium">Tracking</h3>
-          <p className="text-sm text-text-muted">{order.trackingNumber}</p>
+          <p className="text-sm text-text-muted">
+            {order.trackingNumber ? (
+              order.trackingUrl ? (
+                <a href={order.trackingUrl} target="_blank" rel="noreferrer" className="underline">
+                  {order.courier?.name ? `${order.courier.name} · ` : ''}
+                  {order.trackingNumber}
+                </a>
+              ) : (
+                order.trackingNumber
+              )
+            ) : (
+              'Not dispatched yet'
+            )}
+          </p>
           {order.deliveredOn && (
-            <p className="text-sm text-text-muted">Delivered {order.deliveredOn}</p>
+            <p className="text-sm text-text-muted">Delivered {formatOrderDate(order.deliveredOn)}</p>
           )}
         </div>
 
@@ -73,7 +85,7 @@ export default function OrderDetail({ order }) {
           <dl className="flex flex-col gap-1.5 text-sm">
             <div className="flex justify-between">
               <dt className="text-text-muted">Subtotal</dt>
-              <dd>{formatPrice(orderSubtotal(order))}</dd>
+              <dd>{formatPrice(order.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-text-muted">Shipping</dt>
@@ -81,7 +93,7 @@ export default function OrderDetail({ order }) {
             </div>
             <div className="flex justify-between border-t border-charcoal/10 pt-2 font-medium">
               <dt>Total</dt>
-              <dd>{formatPrice(orderTotal(order))}</dd>
+              <dd>{formatPrice(order.total)}</dd>
             </div>
           </dl>
           <p className="mt-2 text-xs text-text-muted">Paid with {order.paymentLabel}</p>

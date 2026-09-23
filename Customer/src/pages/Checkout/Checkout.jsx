@@ -11,7 +11,9 @@ import ReviewStep from '../../components/Checkout/ReviewStep/ReviewStep'
 import Button from '../../components/Common/Button/Button'
 import EmptyState from '../../components/Common/EmptyState/EmptyState'
 import { useCart } from '../../context/useCart'
-import { CHECKOUT_STEPS, COUNTRIES, TAX_RATE, shippingCostFor } from '../../config/checkout'
+import { useAuth } from '../../context/useAuth'
+import { useCheckoutOptions, usePlaceOrder } from '../../data/useCheckout'
+import { CHECKOUT_STEPS, COUNTRIES } from '../../config/checkout'
 import { ROUTES, collectionPath } from '../../config/routes'
 
 const INITIAL = {
@@ -27,6 +29,9 @@ const INITIAL = {
   postcode: '',
   country: COUNTRIES[0],
   delivery: 'standard',
+  // Card fields are kept even though no gateway is live. Deleting them would mean
+  // rebuilding the form when Stripe is enabled; unused is cheaper than missing.
+  paymentMethod: null,
   cardName: '',
   cardNumber: '',
   cardExpiry: '',
@@ -39,7 +44,7 @@ const EXPIRY_RE = /^(0[1-9]|1[0-2])\s*\/\s*\d{2}$/
 
 // Only the step being left is validated, so someone is never blocked by a field they have not
 // reached yet.
-function validateStep(stepId, values) {
+function validateStep(stepId, values, context = {}) {
   const errors = {}
 
   if (stepId === 'contact') {
@@ -56,11 +61,19 @@ function validateStep(stepId, values) {
   }
 
   if (stepId === 'payment') {
-    if (!values.cardName.trim()) errors.cardName = 'Required'
-    const digits = values.cardNumber.replace(/\D/g, '')
-    if (digits.length < 13 || digits.length > 19) errors.cardNumber = 'Enter a card number'
-    if (!EXPIRY_RE.test(values.cardExpiry)) errors.cardExpiry = 'Use MM/YY'
-    if (!/^\d{3,4}$/.test(values.cardCvc)) errors.cardCvc = '3 or 4 digits'
+    const method = context.methods?.find((row) => row.code === values.paymentMethod)
+
+    if (!method) {
+      errors.paymentMethod = 'Choose how you would like to pay'
+    } else if (method.kind === 'gateway') {
+      // Only a card needs card validation. Cash on delivery and bank transfer have no
+      // fields to get wrong, and demanding a card number for them was the old bug.
+      if (!values.cardName.trim()) errors.cardName = 'Required'
+      const digits = values.cardNumber.replace(/\D/g, '')
+      if (digits.length < 13 || digits.length > 19) errors.cardNumber = 'Enter a card number'
+      if (!EXPIRY_RE.test(values.cardExpiry)) errors.cardExpiry = 'Use MM/YY'
+      if (!/^\d{3,4}$/.test(values.cardCvc)) errors.cardCvc = '3 or 4 digits'
+    }
   }
 
   return errors
@@ -68,6 +81,9 @@ function validateStep(stepId, values) {
 
 export default function Checkout() {
   const navigate = useNavigate()
+  const { customer } = useAuth()
+  const { methods, deliveryMethods } = useCheckoutOptions()
+  const placeOrder = usePlaceOrder()
   const { items, subtotal, savings, clearCart } = useCart()
 
   const [stepIndex, setStepIndex] = useState(0)
@@ -86,13 +102,22 @@ export default function Checkout() {
     })
   }, [])
 
-  const shipping = shippingCostFor(values.delivery, subtotal)
-  // PKR has no subunit, so tax rounds to whole rupees.
-  const tax = useMemo(() => Math.round(subtotal * TAX_RATE), [subtotal])
-  const total = subtotal + shipping + tax
+  const chosenDelivery = deliveryMethods.find((method) => method.id === values.delivery)
+  const shipping = chosenDelivery
+    ? chosenDelivery.freeOver != null && subtotal >= chosenDelivery.freeOver
+      ? 0
+      : chosenDelivery.price
+    : 0
 
-  const goNext = () => {
-    const found = validateStep(step.id, values)
+  // Prices INCLUDE tax, so the total is subtotal + shipping and the tax line is the
+  // portion contained within it. The old code added 8% on top, which charged it twice
+  // against a catalogue that was already tax-inclusive.
+  const total = subtotal + shipping
+  const taxRateBp = 1800
+  const tax = Math.round(total - (total * 10000) / (10000 + taxRateBp))
+
+  const goNext = async () => {
+    const found = validateStep(step.id, values, { methods })
     setErrors(found)
     if (Object.keys(found).length > 0) return
 
@@ -101,13 +126,48 @@ export default function Checkout() {
       return
     }
 
-    // Final step: hand the order to the confirmation page and empty the cart.
-    const orderId = `PA-${Math.floor(10000 + Math.random() * 89999)}`
-    clearCart()
-    navigate(ROUTES.orderConfirmed, {
-      replace: true,
-      state: { orderId, email: values.email, total, delivery: values.delivery },
-    })
+    // Final step: place the order for real. It used to invent a random number, save
+    // nothing, and lose the whole thing on refresh.
+    try {
+      const order = await placeOrder.mutateAsync({
+        email: values.email,
+        phone: values.phone || null,
+        marketingOptIn: values.marketingOptIn,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        line1: values.line1,
+        line2: values.line2 || null,
+        city: values.city,
+        region: values.region || null,
+        postcode: values.postcode || null,
+        country: values.country,
+        delivery: values.delivery,
+        paymentMethod: values.paymentMethod,
+        billingSame: values.billingSame,
+        lines: items.map((line) => ({
+          handle: line.handle,
+          variantId: line.variantId,
+          quantity: line.quantity,
+          giftWrap: line.giftWrap,
+          giftCard: line.giftCard,
+          giftMessage: line.giftMessage || null,
+        })),
+      })
+
+      clearCart()
+      // The access token goes in the URL, so a refresh re-fetches the order instead of
+      // bouncing the customer home.
+      navigate(`${ROUTES.orderConfirmed}?token=${encodeURIComponent(order.accessToken)}`, {
+        replace: true,
+      })
+    } catch (error) {
+      const details = error.details ?? []
+      setErrors(
+        details.length > 0
+          ? Object.fromEntries(details.map((detail) => [detail.field, detail.message]))
+          : { form: error.message ?? 'We could not place that order' },
+      )
+    }
   }
 
   if (items.length === 0) {
@@ -153,10 +213,11 @@ export default function Checkout() {
                 value={values.delivery}
                 onChange={(id) => onChange('delivery', id)}
                 subtotal={subtotal}
+                methods={deliveryMethods}
               />
             )}
             {step.id === 'payment' && (
-              <PaymentStep values={values} errors={errors} onChange={onChange} />
+              <PaymentStep values={values} errors={errors} onChange={onChange} methods={methods} />
             )}
             {step.id === 'review' && <ReviewStep values={values} onEditStep={setStepIndex} />}
 

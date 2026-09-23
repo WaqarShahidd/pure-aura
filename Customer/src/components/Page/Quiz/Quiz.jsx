@@ -2,7 +2,9 @@ import { useState } from 'react'
 import ProductCard from '../../Common/ProductCard/ProductCard'
 import Button from '../../Common/Button/Button'
 import ProgressBar from '../../Common/ProgressBar/ProgressBar'
-import { getAllProducts } from '../../../data/catalog'
+import ProductGridSkeleton from '../../Common/Skeleton/ProductGridSkeleton'
+import LoadError from '../../Common/LoadError/LoadError'
+import { EMPTY, useAllProducts } from '../../../data/useCatalog'
 import { collectionPath } from '../../../config/routes'
 import { cn } from '../../../utils/classNames'
 
@@ -55,8 +57,7 @@ const QUESTIONS = [
   },
 ]
 
-function recommend(answers) {
-  const products = getAllProducts()
+function recommend(answers, products) {
 
   const scored = products.map((product) => {
     let score = 0
@@ -82,6 +83,10 @@ export default function Quiz() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
 
+  // The whole catalogue, because recommend() scores every product against the collected
+  // facet preferences rather than looking anything up by key.
+  const { data: products = EMPTY, isPending, isError, refetch } = useAllProducts()
+
   const isResult = step >= QUESTIONS.length
   const question = QUESTIONS[step]
 
@@ -96,7 +101,10 @@ export default function Quiz() {
   }
 
   if (isResult) {
-    const results = recommend(answers)
+    if (isError) return <LoadError onAction={refetch} />
+    if (isPending) return <ProductGridSkeleton count={3} />
+
+    const results = recommend(answers, products)
 
     return (
       <div className="flex flex-col gap-8">

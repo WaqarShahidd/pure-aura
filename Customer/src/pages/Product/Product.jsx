@@ -12,7 +12,9 @@ import RoutineRow from '../../components/Product/RoutineRow/RoutineRow'
 import Breadcrumb from '../../components/Common/Breadcrumb/Breadcrumb'
 import PaymentIcons from '../../components/Common/PaymentIcons/PaymentIcons'
 import NotFound from '../NotFound/NotFound'
-import { getProductByHandle, getRoutineProducts, getUpsells } from '../../data/catalog'
+import ProductDetailSkeleton from '../../components/Product/ProductDetailSkeleton'
+import LoadError from '../../components/Common/LoadError/LoadError'
+import { EMPTY, useProduct, useRoutineProducts, useUpsells } from '../../data/useCatalog'
 import { cartLineFrom } from '../../context/cartLine'
 import { useCart } from '../../context/useCart'
 import { productPageCopy } from '../../config/productPage'
@@ -39,11 +41,20 @@ export default function Product() {
     setArtworkFile(null)
   }
 
-  const product = getProductByHandle(handle)
+  // Every hook has to run before the early returns below. Sequencing matters here: the
+  // NotFound and loading branches used to sit above these calls, and moving a return
+  // upwards would change the hook order between renders.
+  const { data: product, isPending, isError, error, refetch } = useProduct(handle)
+  const { data: routineProducts = EMPTY } = useRoutineProducts(handle)
+  const { data: deals = EMPTY } = useUpsells(handle ? [handle] : [])
+
+  if (isPending) return <ProductDetailSkeleton />
+  // A 404 from the API is a genuinely missing product, not a failure worth retrying.
+  if (isError && error?.status === 404) return <NotFound />
+  if (isError) return <LoadError onAction={refetch} />
   if (!product) return <NotFound />
 
-  const routineProducts = getRoutineProducts(product)
-  const deal = getUpsells([product.handle])[0]
+  const deal = deals[0]
 
   const handleAddToCart = () => addItem(cartLineFrom(product, options), quantity)
   const handleBuyNow = () => {

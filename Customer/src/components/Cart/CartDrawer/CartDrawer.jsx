@@ -12,7 +12,7 @@ import PaymentIcons from '../../Common/PaymentIcons/PaymentIcons'
 import EmptyState from '../../Common/EmptyState/EmptyState'
 import { useCart } from '../../../context/useCart'
 import { cartLineFrom } from '../../../context/cartLine'
-import { getUpsells } from '../../../data/catalog'
+import { EMPTY, useUpsells } from '../../../data/useCatalog'
 import { cartConfig, cartCopy } from '../../../config/cart'
 import { ROUTES, collectionPath } from '../../../config/routes'
 
@@ -39,7 +39,10 @@ export default function CartDrawer() {
     removeDiscount,
   } = useCart()
 
-  const upsells = getUpsells(items.map((line) => line.handle)).slice(0, cartConfig.upsellLimit)
+  // Upsells exclude what is already in the cart, so the query key changes as lines are
+  // added or removed and the suggestions stay relevant without a manual refetch.
+  const { data: allUpsells = EMPTY } = useUpsells(items.map((line) => line.handle))
+  const upsells = allUpsells.slice(0, cartConfig.upsellLimit)
 
   const goTo = (path) => {
     closeCart()

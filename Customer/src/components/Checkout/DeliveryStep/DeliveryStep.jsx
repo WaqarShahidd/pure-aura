@@ -1,4 +1,3 @@
-import { DELIVERY_METHODS, shippingCostFor } from '../../../config/checkout'
 import { formatPrice } from '../../../utils/formatPrice'
 import { cn } from '../../../utils/classNames'
 
@@ -7,8 +6,8 @@ export default function DeliveryStep({ value, onChange, subtotal }) {
     <fieldset className="flex flex-col gap-3">
       <legend className="mb-2 text-lg font-medium">Delivery method</legend>
 
-      {DELIVERY_METHODS.map((method) => {
-        const cost = shippingCostFor(method.id, subtotal)
+      {methods.map((method) => {
+        const cost = (method.freeOver != null && subtotal >= method.freeOver ? 0 : method.price)
         const selected = value === method.id
 
         return (

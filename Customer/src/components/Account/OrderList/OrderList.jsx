@@ -1,12 +1,18 @@
 import { Link } from 'react-router-dom'
 import Badge from '../../Common/Badge/Badge'
 import EmptyState from '../../Common/EmptyState/EmptyState'
-import { orders, orderItemCount, orderTotal } from '../../../data/account'
+import { orderItemCount, useOrders } from '../../../data/useAccount'
+import { formatOrderDate, statusMeta } from '../../../config/orders'
 import { orderPath } from '../../../config/routes'
 import { formatPrice } from '../../../utils/formatPrice'
 
 export default function OrderList({ limit }) {
+  const { data: orders = [], isPending } = useOrders()
   const rows = limit ? orders.slice(0, limit) : orders
+
+  if (isPending) {
+    return <div className="min-h-[8rem]" />
+  }
 
   if (rows.length === 0) {
     return <EmptyState title="No orders yet" body="Your orders will appear here once you place one." />
@@ -23,14 +29,14 @@ export default function OrderList({ limit }) {
             <div>
               <p className="text-sm font-medium">{order.id}</p>
               <p className="text-xs text-text-muted">
-                Placed {order.placedOn} · {orderItemCount(order)} item
+                Placed {formatOrderDate(order.placedOn)} · {orderItemCount(order)} item
                 {orderItemCount(order) === 1 ? '' : 's'}
               </p>
             </div>
 
             <div className="flex items-center gap-4">
-              <Badge tone={order.status === 'Delivered' ? 'light' : 'dark'}>{order.status}</Badge>
-              <span className="text-sm font-semibold">{formatPrice(orderTotal(order))}</span>
+              <Badge tone={statusMeta(order.status).tone}>{statusMeta(order.status).label}</Badge>
+              <span className="text-sm font-semibold">{formatPrice(order.total)}</span>
             </div>
           </Link>
         </li>

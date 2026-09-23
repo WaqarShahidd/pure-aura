@@ -1,25 +1,30 @@
-import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PageHero from '../../components/Page/PageHero/PageHero'
 import ProductGrid from '../../components/Collection/ProductGrid/ProductGrid'
 import TextField from '../../components/Common/TextField/TextField'
 import EmptyState from '../../components/Common/EmptyState/EmptyState'
-import { getAllProducts } from '../../data/catalog'
-import { searchProducts } from '../../utils/searchProducts'
+import ProductGridSkeleton from '../../components/Common/Skeleton/ProductGridSkeleton'
+import LoadError from '../../components/Common/LoadError/LoadError'
+import { EMPTY, useSearch } from '../../data/useCatalog'
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
 
-  const results = useMemo(
-    () => (query ? searchProducts(getAllProducts(), query) : []),
-    [query],
-  )
+  // Scoring moved to the server, which runs the same weighted algorithm this page used
+  // to run locally - same field weights, same every-term-must-match rule, same tie-break.
+  const { data: results = EMPTY, isPending, isError, refetch } = useSearch(query)
 
   const onChange = (event) => {
     const next = event.target.value
     // `replace` keeps typing out of the history stack.
     setParams(next ? { q: next } : {}, { replace: true })
+  }
+
+  const renderResults = () => {
+    if (isError) return <LoadError onAction={refetch} />
+    if (isPending) return <ProductGridSkeleton />
+    return <ProductGrid products={results} />
   }
 
   return (
@@ -47,7 +52,7 @@ export default function Search() {
             body="Results update as you type — no need to press enter."
           />
         ) : (
-          <ProductGrid products={results} />
+          renderResults()
         )}
       </section>
     </>

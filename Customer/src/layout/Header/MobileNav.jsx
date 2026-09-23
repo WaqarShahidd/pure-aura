@@ -3,8 +3,7 @@ import Drawer from '@mui/material/Drawer'
 import { Link } from 'react-router-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
-import { navigation } from '../../config/navigation'
-import { site } from '../../config/site'
+import { useBootstrap } from '../../data/useContent'
 import { ROUTES } from '../../config/routes'
 import { cn } from '../../utils/classNames'
 import { layoutOf } from './navLayout'
@@ -23,6 +22,7 @@ function childLinksOf(item) {
 }
 
 export default function MobileNav({ open, onClose }) {
+  const { settings, navigation } = useBootstrap()
   const [expanded, setExpanded] = useState(null)
 
   return (
@@ -35,7 +35,7 @@ export default function MobileNav({ open, onClose }) {
     >
       <div className="flex items-center justify-between border-b border-charcoal/10 px-5 py-4">
         <Link to={ROUTES.home} onClick={onClose} className="text-xl font-semibold lowercase">
-          {site.name.split(' ')[0].toLowerCase()}
+          {settings.name.split(' ')[0].toLowerCase()}
           <span className="text-accent">.</span>
         </Link>
         <button type="button" aria-label="Close menu" onClick={onClose}>

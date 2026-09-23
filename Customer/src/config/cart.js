@@ -3,7 +3,9 @@ export const cartConfig = {
   freeShippingThreshold: 28000,
   // How long items are "reserved" for; drives the drawer countdown.
   reservationMinutes: 10,
-  storageKey: 'pure-aura:cart:v1',
+  // Bumped to v2 with the line-key change: a stored v1 cart keys its lines by handle
+  // alone, which would collide with the new variant-aware keys.
+  storageKey: 'pure-aura:cart:v2',
   maxLineQuantity: 99,
   upsellLimit: 5,
 }

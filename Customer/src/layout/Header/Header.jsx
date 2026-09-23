@@ -10,8 +10,7 @@ import { layoutOf } from './navLayout'
 import MegaPanel from './MegaPanel'
 import FlyoutPanel from './FlyoutPanel'
 import MobileNav from './MobileNav'
-import { navigation } from '../../config/navigation'
-import { site } from '../../config/site'
+import { useBootstrap } from '../../data/useContent'
 import { ROUTES } from '../../config/routes'
 import { useScrollPosition } from '../../utils/useScrollPosition'
 import { useCart } from '../../context/useCart'
@@ -22,6 +21,7 @@ import { cn } from '../../utils/classNames'
 const CLOSE_DELAY_MS = 120
 
 export default function Header({ overlay = false }) {
+  const { settings, navigation } = useBootstrap()
   const scrolled = useScrollPosition(40)
   const { count, openCart } = useCart()
   const { pathname } = useLocation()
@@ -114,7 +114,7 @@ export default function Header({ overlay = false }) {
                   transparent ? 'text-white' : 'text-charcoal',
                 )}
               >
-                {site.name.split(' ')[0].toLowerCase()}
+                {settings.name.split(' ')[0].toLowerCase()}
                 <span className="text-accent">.</span>
               </Link>
             </div>

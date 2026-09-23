@@ -13,6 +13,8 @@ export default function FilterBar({
   onViewChange,
   sortId,
   onSortChange,
+  sortOptions,
+  defs,
   facets,
   active,
   onToggle,
@@ -59,14 +61,15 @@ export default function FilterBar({
             ))}
           </div>
 
-          <SortSelect value={sortId} onChange={onSortChange} />
+          <SortSelect value={sortId} onChange={onSortChange} options={sortOptions} />
         </div>
       </div>
 
       {filtersOpen && (
         <div className="mt-5">
           <FilterPills
-            facets={facets}
+            defs={defs}
+          facets={facets}
             active={active}
             onToggle={onToggle}
             onClear={onClear}

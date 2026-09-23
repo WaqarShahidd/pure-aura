@@ -1,61 +1,118 @@
-import { useCallback, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useMemo } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import CollectionHero from '../../components/Collection/CollectionHero/CollectionHero'
 import CategoryCards from '../../components/Collection/CategoryCards/CategoryCards'
 import FilterBar from '../../components/Collection/FilterBar/FilterBar'
 import ProductGrid from '../../components/Collection/ProductGrid/ProductGrid'
+import Pagination from '../../components/Collection/Pagination/Pagination'
+import ProductGridSkeleton from '../../components/Common/Skeleton/ProductGridSkeleton'
+import LoadError from '../../components/Common/LoadError/LoadError'
 import NotFound from '../NotFound/NotFound'
-import { getCollectionByHandle, getProductsByCollection } from '../../data/catalog'
-import { FILTER_DEFS, DEFAULT_SORT } from '../../config/filters'
+import { EMPTY, useCollection, useCollectionProducts, useFilters } from '../../data/useCatalog'
 import { ALL_COLLECTION } from '../../config/routes'
 import {
+  activeFromParams,
   applyFilters,
   buildFacets,
+  paramsFromActive,
   sortProducts,
   toggleFilterValue,
 } from '../../utils/productFilters'
 
+const PER_PAGE = 24
+
 // Pages stay free of markup beyond composing sections, but routing-derived and cross-section
 // state lives here — the filter bar and the grid both need it.
+//
+// Filter, sort, view and page now live in the QUERY STRING rather than in useState. A
+// filtered view is a thing people send each other and bookmark, and previously none of
+// that survived: every selection was invisible to the URL and lost on reload.
 export default function Collection() {
   const { handle = ALL_COLLECTION } = useParams()
-  const collection = getCollectionByHandle(handle)
+  const [params, setParams] = useSearchParams()
 
-  const [active, setActive] = useState({})
-  const [sortId, setSortId] = useState(DEFAULT_SORT)
-  const [view, setView] = useState('grid')
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  const collectionQuery = useCollection(handle)
+  const productsQuery = useCollectionProducts(handle)
+  const filtersQuery = useFilters()
 
-  // Clear selections when moving between collections — a filter value from the old one may not
-  // even exist in the new set. Done during render rather than in an effect.
-  const [lastHandle, setLastHandle] = useState(handle)
-  if (handle !== lastHandle) {
-    setLastHandle(handle)
-    setActive({})
-  }
+  const defs = filtersQuery.data?.filters ?? EMPTY
+  const priceRanges = filtersQuery.data?.priceRanges ?? EMPTY
+  const sortOptions = filtersQuery.data?.sortOptions ?? EMPTY
 
-  const base = useMemo(() => getProductsByCollection(handle), [handle])
-  const facets = useMemo(() => buildFacets(base, FILTER_DEFS), [base])
-  const results = useMemo(
-    () => sortProducts(applyFilters(base, active, FILTER_DEFS), sortId),
-    [base, active, sortId],
+  const active = useMemo(() => activeFromParams(params, defs), [params, defs])
+  const sortId = params.get('sort') ?? filtersQuery.data?.defaultSort ?? null
+  const view = params.get('view') === 'list' ? 'list' : 'grid'
+  const page = Math.max(1, Number(params.get('page')) || 1)
+  const filtersOpen = params.get('filters') !== 'closed'
+
+  const base = productsQuery.data ?? EMPTY
+
+  const facets = useMemo(
+    () => buildFacets(base, defs, priceRanges),
+    [base, defs, priceRanges],
   )
 
-  const handleToggle = useCallback((filterId, value) => {
-    setActive((current) => toggleFilterValue(current, filterId, value))
-  }, [])
+  const results = useMemo(
+    () => sortProducts(applyFilters(base, active, defs, priceRanges), sortId, sortOptions),
+    [base, active, defs, priceRanges, sortId, sortOptions],
+  )
 
-  const handleClear = useCallback((filterId) => {
-    setActive((current) => {
-      const next = { ...current }
+  const pageCount = Math.max(1, Math.ceil(results.length / PER_PAGE))
+  // Clamping rather than trusting the parameter: ?page=99 on a two-page collection should
+  // show the last page, not an empty grid.
+  const currentPage = Math.min(page, pageCount)
+  const visible = useMemo(
+    () => results.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE),
+    [results, currentPage],
+  )
+
+  // Writing the whole parameter set each time keeps the URL canonical: no stale `page=3`
+  // left behind when a filter change shrinks the result set.
+  const commit = useCallback(
+    (nextActive, overrides = {}) => {
+      const next = paramsFromActive(nextActive, {
+        sort: overrides.sort ?? sortId,
+        page: overrides.page ?? 1,
+        view: overrides.view ?? view,
+      })
+      if ((overrides.filtersOpen ?? filtersOpen) === false) next.set('filters', 'closed')
+      setParams(next, { replace: true })
+    },
+    [setParams, sortId, view, filtersOpen],
+  )
+
+  const handleToggle = useCallback(
+    (filterId, value) => commit(toggleFilterValue(active, filterId, value)),
+    [active, commit],
+  )
+
+  const handleClear = useCallback(
+    (filterId) => {
+      const next = { ...active }
       delete next[filterId]
-      return next
-    })
-  }, [])
+      commit(next)
+    },
+    [active, commit],
+  )
 
-  const handleClearAll = useCallback(() => setActive({}), [])
+  const handleClearAll = useCallback(() => commit({}), [commit])
 
-  if (!collection) return <NotFound />
+  // Every hook above has to run before these returns, or the hook order changes between
+  // the loading render and the loaded one and React tears the component down.
+  if (collectionQuery.isError && collectionQuery.error?.status === 404) return <NotFound />
+  if (collectionQuery.isError || productsQuery.isError) {
+    return (
+      <LoadError
+        onAction={() => {
+          collectionQuery.refetch()
+          productsQuery.refetch()
+        }}
+      />
+    )
+  }
+
+  const collection = collectionQuery.data
+  const isLoading = collectionQuery.isPending || productsQuery.isPending || filtersQuery.isPending
 
   return (
     <>
@@ -66,11 +123,13 @@ export default function Collection() {
         <FilterBar
           resultCount={results.length}
           filtersOpen={filtersOpen}
-          onToggleFilters={() => setFiltersOpen((prev) => !prev)}
+          onToggleFilters={() => commit(active, { filtersOpen: !filtersOpen, page: currentPage })}
           view={view}
-          onViewChange={setView}
+          onViewChange={(nextView) => commit(active, { view: nextView, page: currentPage })}
           sortId={sortId}
-          onSortChange={setSortId}
+          onSortChange={(nextSort) => commit(active, { sort: nextSort })}
+          sortOptions={sortOptions}
+          defs={defs}
           facets={facets}
           active={active}
           onToggle={handleToggle}
@@ -79,7 +138,18 @@ export default function Collection() {
         />
 
         <div className="mt-12">
-          <ProductGrid products={results} view={view} onClearFilters={handleClearAll} />
+          {isLoading ? (
+            <ProductGridSkeleton count={8} />
+          ) : (
+            <>
+              <ProductGrid products={visible} view={view} onClearFilters={handleClearAll} />
+              <Pagination
+                page={currentPage}
+                pageCount={pageCount}
+                onChange={(next) => commit(active, { page: next })}
+              />
+            </>
+          )}
         </div>
       </section>
     </>

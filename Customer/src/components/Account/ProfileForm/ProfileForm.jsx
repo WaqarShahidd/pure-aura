@@ -2,10 +2,21 @@ import { useState } from 'react'
 import TextField from '../../Common/TextField/TextField'
 import Checkbox from '../../Common/Checkbox/Checkbox'
 import Button from '../../Common/Button/Button'
-import { account } from '../../../data/account'
+import { useAuth } from '../../../context/useAuth'
+import { useUpdateProfile } from '../../../data/useAccount'
 
 export default function ProfileForm() {
-  const [values, setValues] = useState(account)
+  const { customer } = useAuth()
+  const updateProfile = useUpdateProfile()
+  const [values, setValues] = useState(customer ?? {})
+
+  // Render-phase sync rather than an effect, matching how Collection.jsx and the admin
+  // product editor hydrate from fetched data.
+  const [hydratedFrom, setHydratedFrom] = useState(customer)
+  if (customer && customer !== hydratedFrom) {
+    setHydratedFrom(customer)
+    setValues(customer)
+  }
   const [errors, setErrors] = useState({})
   const [saved, setSaved] = useState(false)
 
@@ -18,14 +29,37 @@ export default function ProfileForm() {
     setSaved(false)
   }
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
     const next = {}
-    if (!values.firstName.trim()) next.firstName = 'First name is required'
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.email)) next.email = 'Enter a valid email address'
+    if (!values.firstName?.trim()) next.firstName = 'First name is required'
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.email ?? '')) {
+      next.email = 'Enter a valid email address'
+    }
 
     setErrors(next)
-    setSaved(Object.keys(next).length === 0)
+    setSaved(false)
+    if (Object.keys(next).length > 0) return
+
+    // Email is deliberately not sent: changing the address someone signs in with needs a
+    // verification step, and silently moving it would be worse than not offering it.
+    try {
+      await updateProfile.mutateAsync({
+        firstName: values.firstName,
+        lastName: values.lastName,
+        phone: values.phone || null,
+        marketingOptIn: Boolean(values.marketingOptIn),
+        smsOptIn: Boolean(values.smsOptIn),
+      })
+      setSaved(true)
+    } catch (error) {
+      const details = error.details ?? []
+      setErrors(
+        details.length > 0
+          ? Object.fromEntries(details.map((detail) => [detail.field, detail.message]))
+          : { form: error.message ?? 'Could not save' },
+      )
+    }
   }
 
   return (
@@ -54,7 +88,7 @@ export default function ProfileForm() {
         <Button type="submit" variant="solid-dark">Save changes</Button>
         {saved && (
           <span className="text-sm text-olive">
-            Saved for this session — there is no backend behind this demo.
+            Saved.
           </span>
         )}
       </div>

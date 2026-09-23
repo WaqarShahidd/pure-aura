@@ -1,13 +1,14 @@
 import FilterPill from './FilterPill'
-import { FILTER_DEFS } from '../../../config/filters'
 import { countActive } from '../../../utils/productFilters'
 
-export default function FilterPills({ facets, active, onToggle, onClear, onClearAll }) {
+// The facet definitions arrive as a prop rather than an import: they are admin-managed
+// now, so the set of pills is data, not a constant.
+export default function FilterPills({ defs = [], facets, active, onToggle, onClear, onClearAll }) {
   const total = countActive(active)
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {FILTER_DEFS.map((def) => (
+      {defs.map((def) => (
         <FilterPill
           key={def.id}
           def={def}

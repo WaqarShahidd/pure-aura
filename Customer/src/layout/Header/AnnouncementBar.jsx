@@ -2,14 +2,19 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { site } from '../../config/site'
 import { SOCIAL_ICONS } from '../../config/socialIcons'
-import LocaleSelect from './LocaleSelect'
+import { useBootstrap } from '../../data/useContent'
 
 export default function AnnouncementBar() {
+  const { announcements, socials } = useBootstrap()
   const [index, setIndex] = useState(0)
-  const total = site.announcements.length
-  const current = site.announcements[index]
+
+  const total = announcements.length
+  // An admin can schedule every announcement out of its window, which leaves none. The
+  // bar removes itself rather than rendering an empty black strip.
+  if (total === 0) return null
+
+  const current = announcements[index % total]
 
   const step = (delta) => setIndex((prev) => (prev + delta + total) % total)
 
@@ -45,8 +50,9 @@ export default function AnnouncementBar() {
         </button>
 
         <div className="flex items-center gap-3">
-          {site.socials.map(({ label, icon, href }) => {
+          {socials.map(({ label, icon, href }) => {
             const Icon = SOCIAL_ICONS[icon]
+            if (!Icon) return null
             return (
               <a
                 key={label}
@@ -60,11 +66,6 @@ export default function AnnouncementBar() {
               </a>
             )
           })}
-        </div>
-
-        <div className="flex items-center gap-4 border-l border-white/20 pl-4">
-          <LocaleSelect label="Language" options={site.languages} />
-          <LocaleSelect label="Region" options={site.regions} />
         </div>
       </div>
     </div>

@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import SectionHeading, { Accent } from '../../Common/SectionHeading/SectionHeading'
+import SectionHeading from '../../Common/SectionHeading/SectionHeading'
+import AccentText from '../../Common/AccentText/AccentText'
 import Button from '../../Common/Button/Button'
 import { cn } from '../../../utils/classNames'
 
-const STEPS = [
+const FALLBACK_HEADING = {
+  text: 'How to take care for glowing skin.',
+  accent: 'glowing skin',
+}
+
+const FALLBACK_STEPS = [
   { id: 1, label: 'Cleansers', image: null },
   { id: 2, label: 'Serums', image: null },
   {
@@ -16,15 +22,27 @@ const STEPS = [
   },
 ]
 
-export default function RoutineSteps() {
-  const [activeId, setActiveId] = useState(STEPS[STEPS.length - 1].id)
-  const activeStep = STEPS.find((step) => step.id === activeId)
+export default function RoutineSteps({ content }) {
+  const steps = content?.steps?.length ? content.steps : FALLBACK_STEPS
+  const heading = content?.heading ?? FALLBACK_HEADING
+
+  // Which step opens first used to be the magic expression STEPS[STEPS.length - 1].id -
+  // "the last one". It is an explicit index now, so an admin can choose it, and the
+  // active step is DERIVED rather than stored: content arriving asynchronously would
+  // otherwise leave state pointing at a step from the fallback list.
+  const defaultIndex = Math.min(
+    content?.defaultOpenStepIndex ?? steps.length - 1,
+    steps.length - 1,
+  )
+  const [chosenIndex, setChosenIndex] = useState(null)
+  const activeIndex = chosenIndex ?? defaultIndex
+  const activeStep = steps[activeIndex]
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-20 md:px-10">
       <div className="mb-10 text-center">
         <SectionHeading size="md">
-          How to take care for <Accent>glowing skin</Accent>.
+          <AccentText text={heading.text} accent={heading.accent} />
         </SectionHeading>
       </div>
 
@@ -40,16 +58,16 @@ export default function RoutineSteps() {
         </div>
 
         <div className="flex flex-col">
-          {STEPS.map((step, index) => {
-            const isActive = step.id === activeId
+          {steps.map((step, index) => {
+            const isActive = index === activeIndex
             return (
               <div
-                key={step.id}
+                key={step.id ?? `${step.label}-${index}`}
                 className={cn(
                   'cursor-pointer border-t py-5',
-                  index === STEPS.length - 1 && 'border-b',
+                  index === steps.length - 1 && 'border-b',
                 )}
-                onClick={() => setActiveId(step.id)}
+                onClick={() => setChosenIndex(index)}
               >
                 <p className="text-xs uppercase tracking-wide text-text-muted">
                   Step {index + 1}
@@ -70,7 +88,7 @@ export default function RoutineSteps() {
                 {isActive && step.description && (
                   <div className="mt-4">
                     <p className="max-w-md text-sm text-text-muted">{step.description}</p>
-                    {step.cta && (
+                    {step.cta?.enabled !== false && step.cta?.href && (
                       <Button variant="solid-dark" to={step.cta.href} className="mt-4">
                         {step.cta.label}
                       </Button>
